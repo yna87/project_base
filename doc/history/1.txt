@@ -1,0 +1,62 @@
+以下の仕様のプロジェクト管理システムのデータ管理層を開発してください：
+
+【データモデル仕様】
+
+```typescript
+interface Project {
+  id: number;
+  name: string;
+  startDate: string;  // YYYY-MM-DD形式
+  endDate: string;    // YYYY-MM-DD形式
+  phases: {
+    planning: Phase;    // 基本設計
+    design: Phase;      // 詳細設計
+    development: Phase; // 開発
+    testing: Phase;     // テスト
+  };
+}
+
+interface Phase {
+  startDate: string;    // YYYY-MM-DD形式
+  endDate: string;      // YYYY-MM-DD形式
+  status: 'notStarted' | 'inProgress' | 'completed';  // 未着手・進行中・完了
+}
+
+interface Task {
+  id: number;
+  title: string;
+  projectId: number;
+  phaseType: 'planning' | 'design' | 'development' | 'testing';
+  status: 'incomplete' | 'complete';  // 未完了・完了
+}
+```
+
+【必要な機能】
+
+1. 永続化の要件
+
+- LocalStorageを使用してデータを永続化する
+
+- プロジェクト、フェーズ、タスクのデータをJSON形式で保存
+
+- アプリケーション起動時にLocalStorageからデータを読み込む
+
+2. 型定義
+
+- 全てのデータモデルをTypeScriptの型定義として提供
+
+- データ操作メソッドの引数と戻り値の型定義
+
+3. データ操作機能
+
+- 各データモデルのCRUD操作
+
+4. コンポーネントからはAPI呼び出しとして扱えるように実装する
+
+- vueコンポーネントが useApi() というcomposableを呼び出し、api.getProjects() のような形でCRUD操作を行えるようにすること
+
+以下の形式で出力してください：
+
+1. 全てのファイルの完全なコードをまとめて生成できるbashのスクリプト
+
+2. 他のフロントエンド開発者がページコンポーネントを作成するときに参照するドキュメント（このドキュメントを読むだけでページ開発を全てできるようにかかれたもの）

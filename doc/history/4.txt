@@ -1,0 +1,205 @@
+プロジェクト管理システムのタスク一覧ページを開発してください。
+
+【使用技術】
+- Vue 3 (Composition API)
+- TypeScript
+- TailwindCSS
+
+【データ管理層の仕様】
+# プロジェクト管理システム 開発者ドキュメント
+
+## 概要
+
+このドキュメントでは、プロジェクト管理システムのデータ層の使用方法について説明します。システムはTypeScriptで実装され、LocalStorageを使用してデータを永続化します。
+
+## データモデル
+
+### Project
+```typescript
+interface Project {
+  id: number;
+  name: string;
+  startDate: string;  // YYYY-MM-DD形式
+  endDate: string;    // YYYY-MM-DD形式
+  phases: {
+    planning: Phase;    // 基本設計
+    design: Phase;      // 詳細設計
+    development: Phase; // 開発
+    testing: Phase;     // テスト
+  };
+}
+```
+
+### Phase
+```typescript
+interface Phase {
+  startDate: string;    // YYYY-MM-DD形式
+  endDate: string;      // YYYY-MM-DD形式
+  status: 'notStarted' | 'inProgress' | 'completed';
+}
+```
+
+### Task
+```typescript
+interface Task {
+  id: number;
+  title: string;
+  projectId: number;
+  phaseType: 'planning' | 'design' | 'development' | 'testing';
+  status: 'incomplete' | 'complete';
+}
+```
+
+## APIの使用方法
+
+### コンポーネントでの基本的な使用方法
+
+```typescript
+import { useApi } from '../composables/useApi';
+
+export default defineComponent({
+  setup() {
+    const api = useApi();
+    
+    // APIメソッドを使用してデータを操作
+    const loadProjects = async () => {
+      const projects = await api.getProjects();
+      // ...
+    };
+    
+    return { loadProjects };
+  }
+});
+```
+
+### プロジェクト操作
+
+#### プロジェクト一覧の取得
+```typescript
+const projects = await api.getProjects();
+```
+
+#### 単一プロジェクトの取得
+```typescript
+const project = await api.getProject(projectId);
+```
+
+#### プロジェクトの作成
+```typescript
+const newProject = await api.createProject({
+  name: "新規プロジェクト",
+  startDate: "2024-01-01",
+  endDate: "2024-12-31",
+  phases: {
+    planning: {
+      startDate: "2024-01-01",
+      endDate: "2024-03-31",
+      status: "notStarted"
+    },
+    design: {
+      startDate: "2024-04-01",
+      endDate: "2024-06-30",
+      status: "notStarted"
+    },
+    development: {
+      startDate: "2024-07-01",
+      endDate: "2024-09-30",
+      status: "notStarted"
+    },
+    testing: {
+      startDate: "2024-10-01",
+      endDate: "2024-12-31",
+      status: "notStarted"
+    }
+  }
+});
+```
+
+#### プロジェクトの更新
+```typescript
+const updatedProject = await api.updateProject(projectId, {
+  name: "更新後のプロジェクト名"
+});
+```
+
+#### プロジェクトの削除
+```typescript
+const success = await api.deleteProject(projectId);
+```
+
+### タスク操作
+
+#### プロジェクトのタスク一覧取得
+```typescript
+const tasks = await api.getTasks(projectId);
+```
+
+#### フェーズ別タスク一覧取得
+```typescript
+const planningTasks = await api.getProjectPhaseTasks(projectId, 'planning');
+```
+
+#### タスクの作成
+```typescript
+const newTask = await api.createTask({
+  title: "新規タスク",
+  projectId: 1,
+  phaseType: "planning",
+  status: "incomplete"
+});
+```
+
+#### タスクの更新
+```typescript
+const updatedTask = await api.updateTask(taskId, {
+  status: "complete"
+});
+```
+
+#### タスクの削除
+```typescript
+const success = await api.deleteTask(taskId);
+```
+
+## エラーハンドリング
+
+各APIメソッドは、操作が失敗した場合にundefinedまたはfalseを返します。
+コンポーネント側で適切にエラーハンドリングを実装することを推奨します。
+
+```typescript
+try {
+  const project = await api.getProject(projectId);
+  if (!project) {
+    // プロジェクトが見つからない場合の処理
+    return;
+  }
+  // 正常系の処理
+} catch (error) {
+  // エラー処理
+  console.error('Failed to load project:', error);
+}
+```
+
+【タスク一覧ページの仕様】
+### 3. タスク一覧ページ
+- パス: `/tasks`
+- コンポーネント名: `TaskListView`
+- 実装要件:
+  - タスク一覧をテーブル形式で表示
+  - タスクの新規作成機能
+    - プロジェクトとフェーズの選択機能を含む
+  - タスクのステータス変更機能（完了・未完了の切り替え）
+  - プロジェクト名でのフィルタリング機能
+  - フェーズでのフィルタリング機能
+  - タスクのステータスでのフィルタリング機能
+
+以下の要件を満たすように実装してください：
+1. データ管理層のインターフェースのみを使用し、直接LocalStorageにアクセスしない
+2. ページはすべて1つのコンポーネント内に実装する
+3. script setup を利用してできるだけモダンな記述をする
+4. TailwindCSSを使用したデザイン
+5. エラーハンドリングは不要
+6. script, templateの順で記述する
+
+以下の形式でコードを生成してください：
+1. 必要なコンポーネントの実装

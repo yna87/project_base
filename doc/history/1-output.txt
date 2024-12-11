@@ -1,0 +1,546 @@
+データ管理層の実装を作成します。
+
+
+
+```bash
+#!/bin/bash
+
+# Create directory structure
+mkdir -p src/types src/composables src/api
+
+# Create types/index.ts
+cat > src/types/index.ts << 'EOF'
+export interface Project {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  phases: {
+    planning: Phase;
+    design: Phase;
+    development: Phase;
+    testing: Phase;
+  };
+}
+
+export interface Phase {
+  startDate: string;
+  endDate: string;
+  status: 'notStarted' | 'inProgress' | 'completed';
+}
+
+export interface Task {
+  id: number;
+  title: string;
+  projectId: number;
+  phaseType: 'planning' | 'design' | 'development' | 'testing';
+  status: 'incomplete' | 'complete';
+}
+
+export type PhaseType = 'planning' | 'design' | 'development' | 'testing';
+EOF
+
+# Create api/storage.ts
+cat > src/api/storage.ts << 'EOF'
+import { Project, Task } from '../types';
+
+const STORAGE_KEYS = {
+  PROJECTS: 'projects',
+  TASKS: 'tasks',
+};
+
+export class StorageService {
+  private getItem<T>(key: string): T[] {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  }
+
+  private setItem<T>(key: string, value: T[]): void {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  getProjects(): Project[] {
+    return this.getItem<Project>(STORAGE_KEYS.PROJECTS);
+  }
+
+  setProjects(projects: Project[]): void {
+    this.setItem(STORAGE_KEYS.PROJECTS, projects);
+  }
+
+  getTasks(): Task[] {
+    return this.getItem<Task>(STORAGE_KEYS.TASKS);
+  }
+
+  setTasks(tasks: Task[]): void {
+    this.setItem(STORAGE_KEYS.TASKS, tasks);
+  }
+}
+
+export const storageService = new StorageService();
+EOF
+
+# Create api/index.ts
+cat > src/api/index.ts << 'EOF'
+import { Project, Task, PhaseType } from '../types';
+import { storageService } from './storage';
+
+export class Api {
+  // Projects
+  async getProjects(): Promise<Project[]> {
+    return storageService.getProjects();
+  }
+
+  async getProject(id: number): Promise<Project | undefined> {
+    const projects = await this.getProjects();
+    return projects.find(p => p.id === id);
+  }
+
+  async createProject(project: Omit<Project, 'id'>): Promise<Project> {
+    const projects = await this.getProjects();
+    const newProject: Project = {
+      ...project,
+      id: projects.length ? Math.max(...projects.map(p => p.id)) + 1 : 1
+    };
+    storageService.setProjects([...projects, newProject]);
+    return newProject;
+  }
+
+  async updateProject(id: number, project: Partial<Project>): Promise<Project | undefined> {
+    const projects = await this.getProjects();
+    const index = projects.findIndex(p => p.id === id);
+    if (index === -1) return undefined;
+
+    const updatedProject = { ...projects[index], ...project };
+    projects[index] = updatedProject;
+    storageService.setProjects(projects);
+    return updatedProject;
+  }
+
+  async deleteProject(id: number): Promise<boolean> {
+    const projects = await this.getProjects();
+    const filteredProjects = projects.filter(p => p.id !== id);
+    if (filteredProjects.length === projects.length) return false;
+    
+    storageService.setProjects(filteredProjects);
+    // Clean up related tasks
+    const tasks = await this.getTasks();
+    const filteredTasks = tasks.filter(t => t.projectId !== id);
+    storageService.setTasks(filteredTasks);
+    return true;
+  }
+
+  // Tasks
+  async getTasks(projectId?: number): Promise<Task[]> {
+    const tasks = storageService.getTasks();
+    return projectId ? tasks.filter(t => t.projectId === projectId) : tasks;
+  }
+
+  async getProjectPhaseTasks(projectId: number, phaseType: PhaseType): Promise<Task[]> {
+    const tasks = await this.getTasks(projectId);
+    return tasks.filter(t => t.phaseType === phaseType);
+  }
+
+  async createTask(task: Omit<Task, 'id'>): Promise<Task> {
+    const tasks = await this.getTasks();
+    const newTask: Task = {
+      ...task,
+      id: tasks.length ? Math.max(...tasks.map(t => t.id)) + 1 : 1
+    };
+    storageService.setTasks([...tasks, newTask]);
+    return newTask;
+  }
+
+  async updateTask(id: number, task: Partial<Task>): Promise<Task | undefined> {
+    const tasks = await this.getTasks();
+    const index = tasks.findIndex(t => t.id === id);
+    if (index === -1) return undefined;
+
+    const updatedTask = { ...tasks[index], ...task };
+    tasks[index] = updatedTask;
+    storageService.setTasks(tasks);
+    return updatedTask;
+  }
+
+  async deleteTask(id: number): Promise<boolean> {
+    const tasks = await this.getTasks();
+    const filteredTasks = tasks.filter(t => t.id !== id);
+    if (filteredTasks.length === tasks.length) return false;
+    
+    storageService.setTasks(filteredTasks);
+    return true;
+  }
+}
+
+export const api = new Api();
+EOF
+
+# Create composables/useApi.ts
+cat > src/composables/useApi.ts << 'EOF'
+import { api } from '../api';
+
+export function useApi() {
+  return api;
+}
+EOF
+
+```
+
+
+
+# プロジェクト管理システム 開発者ドキュメント
+
+## 概要
+
+このドキュメントでは、プロジェクト管理システムのデータ層の使用方法について説明します。システムはTypeScriptで実装され、LocalStorageを使用してデータを永続化します。
+
+## データモデル
+
+### Project
+```typescript
+interface Project {
+  id: number;
+  name: string;
+  startDate: string;  // YYYY-MM-DD形式
+  endDate: string;    // YYYY-MM-DD形式
+  phases: {
+    planning: Phase;    // 基本設計
+    design: Phase;      // 詳細設計
+    development: Phase; // 開発
+    testing: Phase;     // テスト
+  };
+}
+```
+
+### Phase
+```typescript
+interface Phase {
+  startDate: string;    // YYYY-MM-DD形式
+  endDate: string;      // YYYY-MM-DD形式
+  status: 'notStarted' | 'inProgress' | 'completed';
+}
+```
+
+### Task
+```typescript
+interface Task {
+  id: number;
+  title: string;
+  projectId: number;
+  phaseType: 'planning' | 'design' | 'development' | 'testing';
+  status: 'incomplete' | 'complete';
+}
+```
+
+## APIの使用方法
+
+### コンポーネントでの基本的な使用方法
+
+```typescript
+import { useApi } from '../composables/useApi';
+
+export default defineComponent({
+  setup() {
+    const api = useApi();
+    
+    // APIメソッドを使用してデータを操作
+    const loadProjects = async () => {
+      const projects = await api.getProjects();
+      // ...
+    };
+    
+    return { loadProjects };
+  }
+});
+```
+
+### プロジェクト操作
+
+#### プロジェクト一覧の取得
+```typescript
+const projects = await api.getProjects();
+```
+
+#### 単一プロジェクトの取得
+```typescript
+const project = await api.getProject(projectId);
+```
+
+#### プロジェクトの作成
+```typescript
+const newProject = await api.createProject({
+  name: "新規プロジェクト",
+  startDate: "2024-01-01",
+  endDate: "2024-12-31",
+  phases: {
+    planning: {
+      startDate: "2024-01-01",
+      endDate: "2024-03-31",
+      status: "notStarted"
+    },
+    design: {
+      startDate: "2024-04-01",
+      endDate: "2024-06-30",
+      status: "notStarted"
+    },
+    development: {
+      startDate: "2024-07-01",
+      endDate: "2024-09-30",
+      status: "notStarted"
+    },
+    testing: {
+      startDate: "2024-10-01",
+      endDate: "2024-12-31",
+      status: "notStarted"
+    }
+  }
+});
+```
+
+#### プロジェクトの更新
+```typescript
+const updatedProject = await api.updateProject(projectId, {
+  name: "更新後のプロジェクト名"
+});
+```
+
+#### プロジェクトの削除
+```typescript
+const success = await api.deleteProject(projectId);
+```
+
+### タスク操作
+
+#### プロジェクトのタスク一覧取得
+```typescript
+const tasks = await api.getTasks(projectId);
+```
+
+#### フェーズ別タスク一覧取得
+```typescript
+const planningTasks = await api.getProjectPhaseTasks(projectId, 'planning');
+```
+
+#### タスクの作成
+```typescript
+const newTask = await api.createTask({
+  title: "新規タスク",
+  projectId: 1,
+  phaseType: "planning",
+  status: "incomplete"
+});
+```
+
+#### タスクの更新
+```typescript
+const updatedTask = await api.updateTask(taskId, {
+  status: "complete"
+});
+```
+
+#### タスクの削除
+```typescript
+const success = await api.deleteTask(taskId);
+```
+
+## 実装例
+
+### プロジェクト一覧ページの実装例
+
+```vue
+<template>
+  <div>
+    <h1>プロジェクト一覧</h1>
+    <div v-for="project in projects" :key="project.id">
+      <h2>{{ project.name }}</h2>
+      <p>期間: {{ project.startDate }} 〜 {{ project.endDate }}</p>
+      <button @click="deleteProject(project.id)">削除</button>
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+import { defineComponent, onMounted, ref } from 'vue';
+import { useApi } from '../composables/useApi';
+import { Project } from '../types';
+
+export default defineComponent({
+  setup() {
+    const api = useApi();
+    const projects = ref<Project[]>([]);
+
+    const loadProjects = async () => {
+      projects.value = await api.getProjects();
+    };
+
+    const deleteProject = async (id: number) => {
+      await api.deleteProject(id);
+      await loadProjects();
+    };
+
+    onMounted(loadProjects);
+
+    return {
+      projects,
+      deleteProject
+    };
+  }
+});
+</script>
+```
+
+### プロジェクト詳細ページの実装例
+
+```vue
+<template>
+  <div v-if="project">
+    <h1>{{ project.name }}</h1>
+    
+    <!-- フェーズ情報 -->
+    <div class="phases">
+      <div v-for="(phase, type) in project.phases" :key="type">
+        <h3>{{ phaseNames[type] }}</h3>
+        <p>状態: {{ phase.status }}</p>
+        <p>期間: {{ phase.startDate }} 〜 {{ phase.endDate }}</p>
+        
+        <!-- フェーズのタスク一覧 -->
+        <div class="tasks">
+          <h4>タスク一覧</h4>
+          <div v-for="task in phaseTasks[type]" :key="task.id">
+            <input
+              type="checkbox"
+              :checked="task.status === 'complete'"
+              @change="updateTaskStatus(task.id, task.status === 'complete' ? 'incomplete' : 'complete')"
+            >
+            {{ task.title }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+import { defineComponent, onMounted, ref } from 'vue';
+import { useApi } from '../composables/useApi';
+import { Project, Task, PhaseType } from '../types';
+
+export default defineComponent({
+  props: {
+    projectId: {
+      type: Number,
+      required: true
+    }
+  },
+  
+  setup(props) {
+    const api = useApi();
+    const project = ref<Project | undefined>();
+    const phaseTasks = ref<Record<PhaseType, Task[]>>({
+      planning: [],
+      design: [],
+      development: [],
+      testing: []
+    });
+
+    const phaseNames = {
+      planning: '基本設計',
+      design: '詳細設計',
+      development: '開発',
+      testing: 'テスト'
+    };
+
+    const loadProject = async () => {
+      project.value = await api.getProject(props.projectId);
+    };
+
+    const loadTasks = async () => {
+      for (const phase of Object.keys(phaseTasks.value) as PhaseType[]) {
+        phaseTasks.value[phase] = await api.getProjectPhaseTasks(props.projectId, phase);
+      }
+    };
+
+    const updateTaskStatus = async (taskId: number, status: 'complete' | 'incomplete') => {
+      await api.updateTask(taskId, { status });
+      await loadTasks();
+    };
+
+    onMounted(async () => {
+      await loadProject();
+      await loadTasks();
+    });
+
+    return {
+      project,
+      phaseTasks,
+      phaseNames,
+      updateTaskStatus
+    };
+  }
+});
+</script>
+```
+
+## エラーハンドリング
+
+各APIメソッドは、操作が失敗した場合にundefinedまたはfalseを返します。
+コンポーネント側で適切にエラーハンドリングを実装することを推奨します。
+
+```typescript
+try {
+  const project = await api.getProject(projectId);
+  if (!project) {
+    // プロジェクトが見つからない場合の処理
+    return;
+  }
+  // 正常系の処理
+} catch (error) {
+  // エラー処理
+  console.error('Failed to load project:', error);
+}
+```
+
+
+このプロジェクト管理システムの実装について、以下のような特徴があります：
+
+1. 型安全性
+- 全てのデータモデルとAPIメソッドが完全に型付けされています
+- TypeScriptの型推論を最大限活用できます
+
+2. 使いやすいAPI設計
+- Composableパターンを使って簡単にAPIにアクセスできる設計について、続けて説明します：
+
+2. 使いやすいAPI設計
+- Composableパターンを採用し、`useApi()`で簡単にAPIインスタンスを取得できます
+- 各メソッドは非同期処理を`Promise`で適切に扱います
+- メソッド名は直感的で、戻り値の型が明確です
+
+3. データの永続化
+- LocalStorageを使用してデータを自動的に永続化します
+- JSONでシリアライズされたデータは、ブラウザを閉じても保持されます
+- アプリケーション起動時に自動的にデータを復元します
+
+4. プロジェクト管理に特化した機能
+- プロジェクト全体とフェーズごとの進捗管理
+- タスクのフェーズ別管理と状態追跡
+- プロジェクトとタスクの関連付けが明確
+
+5. コード保守性
+- 各機能が適切に分離されており、拡張が容易です
+- 共通のストレージ層を使用することで、データの一貫性を保持します
+- ドキュメントが充実しており、新規開発者も参加しやすい設計です
+
+このシステムを使って開発を行う際は、提供したドキュメントを参照しながら、必要に応じて機能を拡張していくことができます。特に以下の点に注意して開発を進めることをお勧めします：
+
+1. データの整合性
+- プロジェクトを削除する際は、関連するタスクも適切に削除されるようにしています
+- フェーズの状態変更時は、関連するタスクの状態も考慮に入れてください
+
+2. エラーハンドリング
+- 各APIコールでは適切なエラーハンドリングを実装してください
+- データが見つからない場合やエラーが発生した場合の UI フィードバックを考慮してください
+
+3. パフォーマンス
+- 大量のデータを扱う場合は、ページネーションやフィルタリングの実装を検討してください
+- LocalStorageの容量制限を考慮したデータ管理を行ってください
+
+実装を進める中で質問や機能追加の要望がありましたら、お気軽にお申し付けください。

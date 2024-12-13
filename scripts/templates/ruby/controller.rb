@@ -22,7 +22,7 @@ module Api
 
       # POST /api/v1/{{ table.plural_name | lower }}
       def create
-        {{ table.name | lower }} = {{ table.plural_name | pascalcase }}.new({{ table.name | lower }}_params)
+        {{ table.name | lower }} = {{ table.name | pascalcase }}.new({{ table.name | lower }}_params)
         if {{ table.name | lower }}.save
           render json: {
             status: 'success',
@@ -56,7 +56,7 @@ module Api
         @{{ table.name | lower }}.destroy
         render json: {
           status: 'success',
-          message: '{{ table.plural_name | pascalcase }} was successfully deleted'
+          message: '{{ table.name | pascalcase }} was successfully deleted'
         }
       end
 
@@ -67,7 +67,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           status: 'error',
-          message: '{{ table.plural_name | pascalcase }} not found'
+          message: '{{ table.name | pascalcase }} not found'
         }, status: :not_found
       end
 
@@ -77,67 +77,3 @@ module Api
     end
   end
 end
-
-
-
-
-
-
-
-
-
-
-module Api
-  module V1
-    class {{ table.plural_name | pascalcase }}Controller < Sinatra::Base
-      error SQLite3::Exception do
-        status 500
-        { error: env['sinatra.error'].message }.to_json
-      end
-
-      def show
-  {{ table.name | lower }} = {{ table.plural_name | pascalcase }}.find(params[:id])
-  render json: {
-    status: 'success',
-    data: {{ table.name | lower }}
-  }
-end
-    
-      get '/{{ table.plural_name | lower }}' do
-        {{ table.plural_name | lower }} = {{ table.name }}.all
-        {{ table.plural_name | lower }}.to_json
-      end
-    
-      get '/{{ table.plural_name | lower }}/:id' do
-        {{ table.name | lower }} = {{ table.name }}.find(params[:id])
-        halt 404, { error: '{{ table.name }} not found' }.to_json unless {{ table.name | lower }}
-        {{ table.name | lower }}.to_json
-      end
-    
-      post '/{{ table.plural_name | lower }}' do
-        data = JSON.parse(request.body.read, symbolize_names: true)
-        {{ table.name | lower }} = {{ table.name }}.create(data)
-        status 201
-        {{ table.name | lower }}.to_json
-      end
-    
-      put '/{{ table.plural_name | lower }}/:id' do
-        data = JSON.parse(request.body.read, symbolize_names: true)
-        {{ table.name | lower }} = {{ table.name }}.find(params[:id])
-        halt 404, { error: '{{ table.name }} not found' }.to_json unless {{ table.name | lower }}
-
-        updated_{{ table.name | lower }} = {{ table.name }}.update(params[:id], data)
-        updated_{{ table.name | lower }}.to_json
-      end
-    
-      delete '/{{ table.plural_name | lower }}/:id' do
-        {{ table.name | lower }} = {{ table.name }}.find(params[:id])
-        halt 404, { error: '{{ table.name }} not found' }.to_json unless {{ table.name | lower }}
-
-        {{ table.name }}.delete(params[:id])
-        status 204
-      end
-    end
-  end
-end
-

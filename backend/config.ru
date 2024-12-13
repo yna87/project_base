@@ -1,19 +1,6 @@
-require './app'
-require './routes/api/v1/system'
+# This file is used by Rack-based servers to start the application.
 
-use Rack::Cors do
-  allow do
-    origins 'http://localhost:5173'
-    resource '*', 
-      methods: [:get, :post, :put, :delete, :options],
-      headers: :any,
-      credentials: true,
-      max_age: 600
-  end
-end
+require_relative "config/environment"
 
-map('/api/v1') do
-  use Api::V1::SystemController
-end
-
-run Sinatra::Application
+run Rails.application
+Rails.application.load_server

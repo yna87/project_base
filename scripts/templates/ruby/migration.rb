@@ -1,12 +1,14 @@
-require './models/{{ table.name | snakecase }}.rb'
+class Create{{ table.plural_name | pascalcase }} < ActiveRecord::Migration[8.0]
+  def change
+    create_table :{{ table.plural_name | lower }} do |t|
+      {% for column in table.columns %}
+      {% if column.name not in ['id', 'created_at', 'updated_at'] %}
+      t.{{ column.ruby_type }} :{{ column.name | lower }}
+      {% endif %}
+      {% endfor %}
 
-class Create{{ table.plural_name | pascalcase }}
-  def up
-    {{ table.name | pascalcase }}.create_table()
-  end
-
-  def down
-    db = SQLite3::Database.new('db/development.sqlite3')
-    db.execute('DROP TABLE IF EXISTS {{ table.plural_name | snakecase }};')
+      t.timestamps
+    end
   end
 end
+

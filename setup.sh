@@ -2,190 +2,187 @@
 
 # 色付きの出力のための関数
 print_status() {
-    echo -e "\e[1;34m===> $1\e[0m"
+  echo -e "\e[1;34m===> $1\e[0m"
 }
 
 print_error() {
-    echo -e "\e[1;31m===> Error: $1\e[0m"
+  echo -e "\e[1;31m===> Error: $1\e[0m"
 }
 
 print_success() {
-    echo -e "\e[1;32m===> $1\e[0m"
+  echo -e "\e[1;32m===> $1\e[0m"
 }
 
 # バージョンチェック関数
 version_gt() {
-    test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
+  test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
 }
 
 # より詳細な依存関係チェック
 check_dependencies() {
-    print_status "システム要件をチェックしています..."
-    
-    # Voltaのチェック
-    if ! command -v volta >/dev/null 2>&1; then
-        print_error "Voltaがインストールされていません"
-        print_status "curl https://get.volta.sh | bash で導入できます"
-        exit 1
-    fi
+  print_status "システム要件をチェックしています..."
 
-    # Node.jsのバージョンチェック
-    if command -v node >/dev/null 2>&1; then
-        node_version=$(node -v | cut -d'v' -f2)
-        if version_gt "22.0.0" "$node_version"; then
-            print_error "Node.js 22以上が必要です。現在のバージョン: $node_version"
-            print_status "volta install node@22 で導入できます"
-            exit 1
-        fi
-    else
-        print_error "Node.jsがインストールされていません"
-        print_status "volta install node@22 で導入できます"
-        exit 1
-    fi
+  # Voltaのチェック
+  if ! command -v volta >/dev/null 2>&1; then
+    print_error "Voltaがインストールされていません"
+    print_status "curl https://get.volta.sh | bash で導入できます"
+    exit 1
+  fi
 
-    # Yarnのバージョンチェック
-    if command -v yarn >/dev/null 2>&1; then
-        yarn_version=$(yarn --version)
-        if version_gt "4.0.0" "$yarn_version"; then
-            print_error "Yarn 4以上が必要です。現在のバージョン: $yarn_version"
-            print_status "volta install yarn@4 で導入できます"
-            exit 1
-        fi
-    else
-        print_error "Yarnがインストールされていません"
-        print_status "volta install yarn@4 で導入できます"
-        exit 1
+  # Node.jsのバージョンチェック
+  if command -v node >/dev/null 2>&1; then
+    node_version=$(node -v | cut -d'v' -f2)
+    if version_gt "22.0.0" "$node_version"; then
+      print_error "Node.js 22以上が必要です。現在のバージョン: $node_version"
+      print_status "volta install node@22 で導入できます"
+      exit 1
     fi
+  else
+    print_error "Node.jsがインストールされていません"
+    print_status "volta install node@22 で導入できます"
+    exit 1
+  fi
 
-    # SQLite3のチェック（必要な場合）
-    if ! command -v sqlite3 >/dev/null 2>&1; then
-        print_error "SQLite3がインストールされていません"
-        exit 1
+  # Yarnのバージョンチェック
+  if command -v yarn >/dev/null 2>&1; then
+    yarn_version=$(yarn --version)
+    if version_gt "4.0.0" "$yarn_version"; then
+      print_error "Yarn 4以上が必要です。現在のバージョン: $yarn_version"
+      print_status "volta install yarn@4 で導入できます"
+      exit 1
     fi
+  else
+    print_error "Yarnがインストールされていません"
+    print_status "volta install yarn@4 で導入できます"
+    exit 1
+  fi
 
-    print_success "全ての依存関係が満たされています"
+  # SQLite3のチェック（必要な場合）
+  if ! command -v sqlite3 >/dev/null 2>&1; then
+    print_error "SQLite3がインストールされていません"
+    exit 1
+  fi
+
+  print_success "全ての依存関係が満たされています"
 }
 
 # ディレクトリの存在チェック
 check_directory() {
-    print_status "ディレクトリをチェックしています..."
-    
-    if [ -e backend ] || [ -e frontend ]; then
-        print_error "backend/またはfrontend/ディレクトリが既に存在します"
-        exit 1
-    fi
+  print_status "ディレクトリをチェックしています..."
+
+  if [ -e backend ] || [ -e frontend ]; then
+    print_error "backend/またはfrontend/ディレクトリが既に存在します"
+    exit 1
+  fi
 }
 
 # エラーハンドリング関数
 handle_error() {
-    print_error "エラーが発生しました: $1"
-    print_error "セットアップを中止します"
-    exit 1
+  print_error "エラーが発生しました: $1"
+  print_error "セットアップを中止します"
+  exit 1
 }
 
 setup_backend() {
-    print_status "Sinatraアプリケーションをセットアップしています..."
-    
-    mkdir -p backend
-    cd backend
-    
-    # Gemfileの作成
-    cat > Gemfile << EOL
+  print_status "バックエンドをセットアップしています..."
+
+  mkdir -p backend
+  cd backend
+
+  # bundlerの設定を.bundleに初期化
+  echo "📦 Bundlerの設定を初期化中..."
+  mkdir -p .bundle
+  cat >.bundle/config <<EOL
+---
+BUNDLE_PATH: ".bundle"
+BUNDLE_BIN: ".bundle/bin"
+EOL
+
+  # Gemfileを作成
+  echo "📝 Gemfileを作成中..."
+  cat >Gemfile <<EOL
 source 'https://rubygems.org'
 
-gem 'sinatra'
-gem 'sinatra-contrib'
-gem 'sinatra-activerecord'
-gem 'sqlite3'
-gem 'rake'
-gem 'rack-cors'
-gem 'rackup'
-gem 'puma'
+gem "rails", "~> 8.0.0", ">= 8.0.0.1"
 EOL
 
-    # Rakefileの作成
-    cat > Rakefile << EOL
-require 'sinatra/activerecord/rake'
-require './app'
-EOL
+  # bundlerとrailsをローカルにインストール
+  gem install bundler --no-document --install-dir .bundle
+  bundle install || handle_error "Gemのインストールに失敗しました"
 
-    # config.ruの作成
-    cat > config.ru << EOL
-require './app'
-require './routes/api/v1/system'
+  # 最小構成でRailsアプリケーションを作成
+  echo "🏗️ Railsアプリケーションを作成中..."
+  bundle exec rails new . \
+    --api \
+    --minimal \
+    --skip-bundle \
+    --skip-git \
+    --skip-keeps \
+    --skip-action-mailer \
+    --skip-action-mailbox \
+    --skip-action-text \
+    --skip-active-storage \
+    --skip-action-cable \
+    --skip-javascript \
+    --skip-hotwire \
+    --skip-jbuilder \
+    --force
+  
+  # Gemfileを作成
+  echo "📝 Gemfileを作成中..."
 
-use Rack::Cors do
-  allow do
-    origins 'http://localhost:5173'
-    resource '*', 
-      methods: [:get, :post, :put, :delete, :options],
-      headers: :any,
-      credentials: true,
-      max_age: 600
-  end
+  cat >Gemfile <<EOL
+source "https://rubygems.org"
+
+gem "rails"
+gem "sqlite3"
+gem "puma"
+
+gem "tzinfo-data", platforms: %i[ windows jruby ]
+gem "solid_cache"
+gem "solid_queue"
+gem "kamal", require: false
+gem "thruster", require: false
+gem "rack-cors"
+
+group :development, :test do
+  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
+  gem "brakeman", require: false
+  gem "rubocop-rails-omakase", require: false
 end
-
-map('/api/v1') do
-  use Api::V1::SystemController
-end
-
-run Sinatra::Application
 EOL
 
-    # データベース設定
-    mkdir -p config
-    cat > config/database.yml << EOL
-development:
-  adapter: sqlite3
-  database: db/development.sqlite3
-  pool: 5
-  timeout: 5000
+  # 必要なディレクトリ構造を作成
+  echo "📁 APIディレクトリ構造を作成中..."
+  mkdir -p app/controllers/api/v1
 
-test:
-  adapter: sqlite3
-  database: db/test.sqlite3
-  pool: 5
-  timeout: 5000
-EOL
+  # ApplicationControllerを作成
+  echo "🔧 コントローラを作成中..."
+  cat >app/controllers/application_controller.rb <<EOL
+class ApplicationController < ActionController::API
+  rescue_from ActiveRecord::RecordNotFound, with: :not_found
 
-    # アプリケーションファイルの作成
-    cat > app.rb << EOL
-require 'sinatra'
-require 'sinatra/json'
-require 'sinatra/activerecord'
-require 'rack/cors'
+  private
 
-set :database_file, 'config/database.yml'
-
-use Rack::Cors do
-  allow do
-    origins 'http://localhost:5173'
-    resource '*', 
-      methods: [:get, :post, :put, :delete, :options],
-      headers: :any,
-      credentials: true,
-      max_age: 600
+  def not_found
+    render json: { error: 'not_found' }, status: :not_found
   end
 end
 EOL
 
-    # ヘルスチェックAPIの作成
-    mkdir -p routes/api/v1
-    cat > routes/api/v1/system.rb << EOL
+  # HealthControllerを作成
+  echo "🔧 HealthControllerを作成中..."
+  cat >app/controllers/api/v1/health_controller.rb <<EOL
 module Api
   module V1
-    class SystemController < Sinatra::Base
-      before do
-        content_type :json
-      end
-
-      get '/health_check' do
-        {
+    class HealthController < ApplicationController
+      def check
+        render json: {
           status: 'ok',
           message: 'Backend is running!',
-          timestamp: Time.now,
+          timestamp: Time.current,
           database: database_status
-        }.to_json
+        }
       end
 
       private
@@ -200,44 +197,105 @@ module Api
 end
 EOL
 
-    # データベースディレクトリの作成
-    mkdir -p db
+  # CORSの設定を追加
+  echo "🔒 CORSの設定を追加中..."
+  mkdir -p config/initializers
+  cat >config/initializers/cors.rb <<EOL
+require 'rack/cors'
 
-    # 依存関係のインストール
-    bundle install || handle_error "Gemのインストールに失敗しました"
-    
-    # データベースの作成
-    bundle exec rake db:create || handle_error "データベースの作成に失敗しました"
-    
-    cd ..
+Rails.application.config.middleware.insert_before 0, Rack::Cors do
+  allow do
+    origins 'http://localhost:5173'
+
+    resource '*',
+      headers: :any,
+      methods: [:get, :post, :put, :patch, :delete, :options, :head],
+      credentials: true
+  end
+end
+EOL
+
+  # データベースの設定を追加
+  echo "🗄️ データベースの設定を追加中..."
+  cat >config/database.yml <<EOL
+default: &default
+  adapter: sqlite3
+  pool: 5
+  timeout: 5000
+
+development:
+  <<: *default
+  database: db/development.sqlite3
+
+test:
+  <<: *default
+  database: db/test.sqlite3
+
+production:
+  <<: *default
+  database: db/production.sqlite3
+EOL
+
+  # ルーティングを設定
+  echo "🛣️ ルーティングを設定中..."
+  cat >config/routes.rb <<EOL
+Rails.application.routes.draw do
+  namespace :api do
+    namespace :v1 do
+      get 'health_check', to: 'health#check'
+    end
+  end
+end
+EOL
+
+  # gemの依存関係を再インストール
+  echo "📦 依存関係を再インストール中..."
+  bundle install
+
+  # データベースをセットアップ
+  echo "🗄️ データベースをセットアップ中..."
+  bundle exec rails db:create
+
+  # .gitignoreを設定
+  echo "📝 .gitignoreを設定中..."
+  cat >.gitignore <<EOL
+/.bundle
+/log/*
+/tmp/*
+/db/*.sqlite3
+/db/*.sqlite3-*
+/config/master.key
+EOL
+
+  cd ..
 }
 
 setup_frontend() {
-    print_status "Vueアプリケーションをセットアップしています..."
+  print_status "Vueアプリケーションをセットアップしています..."
 
-    # .yarnrc.ymlの作成
-    cat > .yarnrc.yml << EOL
+  # .yarnrc.ymlの作成
+  cat >.yarnrc.yml <<EOL
 nodeLinker: node-modules
 enableGlobalCache: true
 compressionLevel: 0
 
 EOL
-    
-    # Vue 3プロジェクトの作成（Yarn 4対応）
-    yarn dlx create-vite frontend --template vue-ts || handle_error "Vueプロジェクトの作成に失敗しました"
-    
-    cd frontend
-    
-    # Voltaの設定を追加
-    cat > volta.json << EOL
+
+  # Vue 3プロジェクトの作成（Yarn 4対応）
+  yarn dlx create-vite frontend --template vue-ts || handle_error "Vueプロジェクトの作成に失敗しました"
+
+  cd frontend
+
+  # Voltaの設定を追加
+  cat >volta.json <<EOL
 {
   "node": "22.x",
   "yarn": "4.x"
 }
 EOL
-    
-    # package.jsonの更新
-    cat > package.json << EOL
+
+  # package.jsonの更新
+  cat >package.json <<EOL
 {
   "name": "frontend",
   "private": true,
@@ -283,13 +341,13 @@ EOL
 }
 EOL
 
-    # パッケージのインストール（Yarn 4の構文で）
-    yarn install || handle_error "パッケージのインストールに失敗しました"
+  # パッケージのインストール（Yarn 4の構文で）
+  yarn install || handle_error "パッケージのインストールに失敗しました"
 
-    # Storybook設定ファイルの作成
-    mkdir .storybook
+  # Storybook設定ファイルの作成
+  mkdir .storybook
 
-    cat > .storybook/main.ts << EOL
+  cat >.storybook/main.ts <<EOL
 import { StorybookConfig } from "@storybook/vue3-vite";
 
 const config: StorybookConfig = {
@@ -300,11 +358,11 @@ const config: StorybookConfig = {
 export default config;
 EOL
 
-    # Tailwind CSS初期化
-    npx tailwindcss init -p
+  # Tailwind CSS初期化
+  npx tailwindcss init -p
 
-    # Tailwind CSS設定の更新
-    cat > tailwind.config.js << EOL
+  # Tailwind CSS設定の更新
+  cat >tailwind.config.js <<EOL
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -321,21 +379,21 @@ export default {
 }
 EOL
 
-    # CSS設定の追加
-    cat > src/style.css << EOL
+  # CSS設定の追加
+  cat >src/style.css <<EOL
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 EOL
 
-    # 環境設定ファイルの作成
-    cat > .env << EOL
-VITE_API_URL=http://localhost:4567/api/v1
+  # 環境設定ファイルの作成
+  cat >.env <<EOL
+VITE_API_URL=http://localhost:3000/api/v1
 EOL
 
-    # APIクライアントの設定
-    mkdir -p src/api
-    cat > src/api/client.ts << EOL
+  # APIクライアントの設定
+  mkdir -p src/api
+  cat >src/api/client.ts <<EOL
 import axios from 'axios';
 
 const apiClient = axios.create({
@@ -349,8 +407,8 @@ const apiClient = axios.create({
 export default apiClient;
 EOL
 
-    # TypeScript設定の更新
-    cat > tsconfig.json << EOL
+  # TypeScript設定の更新
+  cat >tsconfig.json <<EOL
 {
   "extends": "@tsconfig/node22/tsconfig.json",
   "compilerOptions": {
@@ -379,8 +437,8 @@ EOL
 }
 EOL
 
-    # tsconfig.node.json の更新
-    cat > tsconfig.node.json << EOL
+  # tsconfig.node.json の更新
+  cat >tsconfig.node.json <<EOL
 {
   "extends": "@tsconfig/node22/tsconfig.json",
   "compilerOptions": {
@@ -395,8 +453,8 @@ EOL
 }
 EOL
 
-    # ESLint設定の追加
-    cat > .eslintrc.cjs << EOL
+  # ESLint設定の追加
+  cat >.eslintrc.cjs <<EOL
 /* eslint-env node */
 require('@rushstack/eslint-patch/modern-module-resolution')
 
@@ -418,8 +476,8 @@ module.exports = {
 }
 EOL
 
-    # Prettier設定の追加
-    cat > .prettierrc.json << EOL
+  # Prettier設定の追加
+  cat >.prettierrc.json <<EOL
 {
   "semi": false,
   "tabWidth": 2,
@@ -429,8 +487,8 @@ EOL
 }
 EOL
 
-    # Vite設定の更新
-    cat > vite.config.ts << EOL
+  # Vite設定の更新
+  cat >vite.config.ts <<EOL
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -450,8 +508,8 @@ export default defineConfig({
 })
 EOL
 
-    # App.vueを更新
-    cat > src/App.vue << EOL
+  # App.vueを更新
+  cat >src/App.vue <<EOL
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import apiClient from './api/client'
@@ -507,8 +565,8 @@ onMounted(() => {
 </template>
 EOL
 
-    # .gitignore の更新
-    cat > .gitignore << EOL
+  # .gitignore の更新
+  cat >.gitignore <<EOL
 # Logs
 logs
 *.log
@@ -544,17 +602,23 @@ coverage
 !.yarn/versions
 EOL
 
-    yarn install || handle_error "依存関係のインストールに失敗しました"
-    
-    cd ..
+  yarn install || handle_error "依存関係のインストールに失敗しました"
+
+  cd ..
 }
 
 create_autogen_script() {
-    print_status "自動生成スクリプトを作成しています..."
+  print_status "自動生成スクリプトを作成しています..."
 
-    mkdir -p scripts
-    
-    cat > scripts/markdown_parser.py << 'EOL'
+  mkdir -p scripts
+
+  cd scripts
+  pyenv local 3.11
+  python -m venv venv
+  pip install jinja2
+  cd ..
+
+  cat >scripts/markdown_parser.py <<'EOL'
 from typing import List, Dict
 import re
 
@@ -673,7 +737,7 @@ class MarkdownParser:
         return type_mapping.get(md_type, 'any')
 EOL
 
-cat > scripts/ts_generator.py << 'EOL'
+  cat >scripts/ts_generator.py <<'EOL'
 from jinja2 import Environment, FileSystemLoader
 import os
 from typing import List, Dict
@@ -727,9 +791,11 @@ if __name__ == '__main__':
     generator.generate_from_markdown('../doc/erd.md', '../frontend/src')
 EOL
 
-    cat > scripts/rb_generator.py << 'EOL'
+  cat >scripts/rb_generator.py <<'EOL'
 from jinja2 import Environment, FileSystemLoader
 import os
+import glob
+import re
 from typing import List, Dict
 from markdown_parser import MarkdownParser, InflectionUtils
 from datetime import datetime, timedelta
@@ -745,7 +811,6 @@ class RubyGenerator:
         self.env.filters['pascalcase'] = InflectionUtils.to_pascal_case
         self.env.filters['camelcase'] = InflectionUtils.to_camel_case
         self.env.filters['snakecase'] = InflectionUtils.to_snake_case
-        # タイムスタンプの開始時刻を保持
         self.current_timestamp = None
     
     def _map_type_to_ruby(self, ts_type: str) -> str:
@@ -768,6 +833,24 @@ class RubyGenerator:
         }
         return type_mapping.get(ruby_type, 'TEXT')
 
+    def _remove_existing_migration(self, output_dir: str, table_name: str):
+        """
+        Remove existing migration files for a given table name
+        """
+        migration_dir = os.path.join(output_dir, 'db/migrate')
+        if not os.path.exists(migration_dir):
+            return
+
+        # マイグレーションファイルのパターン: [timestamp]_create_[table_name].rb
+        pattern = os.path.join(migration_dir, f'*_create_{table_name}.rb')
+        existing_files = glob.glob(pattern)
+        
+        for file_path in existing_files:
+            try:
+                os.remove(file_path)
+            except OSError as e:
+                print(f"Error removing file {file_path}: {e}")
+
     def _generate_timestamp(self) -> str:
         """
         Generate unique timestamp for migration files
@@ -782,7 +865,6 @@ class RubyGenerator:
 
     def generate_from_markdown(self, markdown_path: str, output_dir: str):
         """Generate Ruby files from markdown definition"""
-        # タイムスタンプをリセット
         self.current_timestamp = None
         
         with open(markdown_path, 'r', encoding='utf-8') as f:
@@ -790,7 +872,7 @@ class RubyGenerator:
         
         tables = self.markdown_parser.parse_markdown(markdown_content)
 
-        self.save_files({'config.ru': self.generate_config(tables)}, output_dir)
+        self.save_files({'config/routes.rb': self.generate_routes(tables)}, output_dir)
         
         for table in tables:
             for column in table['columns']:
@@ -801,6 +883,9 @@ class RubyGenerator:
                     'sqlite_type': sqlite_type
                 })
             
+            # マイグレーションファイルを生成する前に既存のファイルを削除
+            self._remove_existing_migration(output_dir, table['plural_name'].lower())
+            
             files = self.generate_files(table)
             self.save_files(files, output_dir)
 
@@ -809,8 +894,8 @@ class RubyGenerator:
         plural_name = table_definition['plural_name'].lower()
         
         return {
-            f'models/{model_name}.rb': self.generate_model(table_definition),
-            f'routes/api/v1/{plural_name}.rb': self.generate_controller(table_definition),
+            f'app/models/{model_name}.rb': self.generate_model(table_definition),
+            f'app/controllers/api/v1/{plural_name}_controller.rb': self.generate_controller(table_definition),
             f'db/migrate/{self._generate_timestamp()}_create_{plural_name}.rb': self.generate_migration(table_definition)
         }
 
@@ -822,8 +907,8 @@ class RubyGenerator:
         template = self.env.get_template('ruby/controller.rb')
         return template.render(table=table_definition)
     
-    def generate_config(self, tables: List[Dict]) -> str:
-        template = self.env.get_template('ruby/config.ru')
+    def generate_routes(self, tables: List[Dict]) -> str:
+        template = self.env.get_template('ruby/routes.rb')
         return template.render(tables=tables)
     
     def generate_migration(self, table_definition: dict) -> str:
@@ -840,19 +925,20 @@ class RubyGenerator:
 if __name__ == '__main__':
     generator = RubyGenerator()
     generator.generate_from_markdown('../doc/erd.md', '../backend')
+
 EOL
 
-    print_success "自動生成スクリプトを作成しました"
+  print_success "自動生成スクリプトを作成しました"
 }
 
 create_autogen_template() {
-    print_status "自動生成テンプレートを作成しています..."
+  print_status "自動生成テンプレートを作成しています..."
 
-    mkdir -p scripts/templates
-    mkdir -p scripts/templates/typescript
-    mkdir -p scripts/templates/ruby
-    
-    cat > scripts/templates/typescript/api.ts << 'EOL'
+  mkdir -p scripts/templates
+  mkdir -p scripts/templates/typescript
+  mkdir -p scripts/templates/ruby
+
+  cat >scripts/templates/typescript/api.ts <<'EOL'
 import apiClient from './client';
 {% for table in tables %}
 import { {{ table.name }} } from '../models/{{ table.name | lower }}';
@@ -890,7 +976,7 @@ export class Api {
 export default Api;
 EOL
 
-    cat > scripts/templates/typescript/model.ts << 'EOL'
+  cat >scripts/templates/typescript/model.ts <<'EOL'
 export class {{ table.name }} { 
     {% for column in table.columns %}
     {{ column.name | camelcase }}: {{ column.ts_type }};
@@ -903,48 +989,125 @@ export class {{ table.name }} {
 
 EOL
 
-    cat > scripts/templates/ruby/config.ru << 'EOL'
-require './app'
-require './routes/api/v1/system'
-{% for table in tables %}
-require './routes/api/v1/{{ table.plural_name | lower }}'
-{% endfor %}
+  cat >scripts/templates/ruby/routes.rb <<'EOL'
+Rails.application.routes.draw do
+    namespace :api do
+      namespace :v1 do
+        get 'health_check', to: 'health#check'
+        {% for table in tables %}
+        resources :{{ table.plural_name | lower }}
+        {% endfor %}
+      end
+    end
+  end
 
-use Rack::Cors do
-  allow do
-    origins 'http://localhost:5173'
-    resource '*', 
-      methods: [:get, :post, :put, :delete, :options],
-      headers: :any,
-      credentials: true,
-      max_age: 600
+EOL
+
+  cat >scripts/templates/ruby/controller.rb <<'EOL'
+module Api
+  module V1
+    class {{ table.plural_name | pascalcase }}Controller < ApplicationController
+      before_action :set_{{ table.name | lower }}, only: [:show, :update, :destroy]
+
+      # GET /api/v1/{{ table.plural_name | lower }}
+      def index
+        {{ table.plural_name | lower }} = {{ table.name | pascalcase }}.all
+        render json: {
+          status: 'success',
+          data: {{ table.plural_name | lower }}
+        }
+      end
+
+      # GET /api/v1/{{ table.plural_name | lower }}/:id
+      def show
+        render json: {
+          status: 'success',
+          data: @{{ table.name | lower }}
+        }
+      end
+
+      # POST /api/v1/{{ table.plural_name | lower }}
+      def create
+        {{ table.name | lower }} = {{ table.plural_name | pascalcase }}.new({{ table.name | lower }}_params)
+        if {{ table.name | lower }}.save
+          render json: {
+            status: 'success',
+            data: {{ table.name | lower }}
+          }, status: :created
+        else
+          render json: {
+            status: 'error',
+            message: {{ table.name | lower }}.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH/PUT /api/v1/{{ table.plural_name | lower }}/:id
+      def update
+        if @{{ table.name | lower }}.update({{ table.name | lower }}_params)
+          render json: {
+            status: 'success',
+            data: @{{ table.name | lower }}
+          }
+        else
+          render json: {
+            status: 'error',
+            message: @{{ table.name | lower }}.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/{{ table.plural_name | lower }}/:id
+      def destroy
+        @{{ table.name | lower }}.destroy
+        render json: {
+          status: 'success',
+          message: '{{ table.plural_name | pascalcase }} was successfully deleted'
+        }
+      end
+
+      private
+
+      def set_{{ table.name | lower }}
+        @{{ table.name | lower }} = {{ table.plural_name | pascalcase }}.find(params[:id])
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          status: 'error',
+          message: '{{ table.plural_name | pascalcase }} not found'
+        }, status: :not_found
+      end
+
+      def {{ table.name | lower }}_params
+        params.require(:{{ table.name | lower }}).permit(:name, :email)
+      end
+    end
   end
 end
 
-map('/api/v1') do
-  use Api::V1::SystemController
-  {% for table in tables %}
-  use Api::V1::{{ table.plural_name | pascalcase }}Controller
-  {% endfor %}
-end
 
-run Sinatra::Application
-EOL
 
-    cat > scripts/templates/ruby/controller.rb << 'EOL'
+
+
+
+
+
+
+
 module Api
   module V1
     class {{ table.plural_name | pascalcase }}Controller < Sinatra::Base
-      require './models/{{ table.name | lower }}'
-
-      before do
-        content_type :json
-      end
-    
       error SQLite3::Exception do
         status 500
         { error: env['sinatra.error'].message }.to_json
       end
+
+      def show
+  {{ table.name | lower }} = {{ table.plural_name | pascalcase }}.find(params[:id])
+  render json: {
+    status: 'success',
+    data: {{ table.name | lower }}
+  }
+end
     
       get '/{{ table.plural_name | lower }}' do
         {{ table.plural_name | lower }} = {{ table.name }}.all
@@ -983,102 +1146,37 @@ module Api
     end
   end
 end
+
 EOL
 
-    cat > scripts/templates/ruby/migration.rb << 'EOL'
-require './models/{{ table.name | snakecase }}.rb'
+  cat >scripts/templates/ruby/migration.rb <<'EOL'
+class Create{{ table.plural_name | pascalcase }} < ActiveRecord::Migration[8.0]
+  def change
+    create_table :{{ table.plural_name | lower }} do |t|
+      {% for column in table.columns %}
+      {% if column.name not in ['id', 'created_at', 'updated_at'] %}
+      t.{{ column.ruby_type }} :{{ column.name | lower }}
+      {% endif %}
+      {% endfor %}
 
-class Create{{ table.plural_name | pascalcase }}
-  def up
-    {{ table.name | pascalcase }}.create_table()
-  end
-
-  def down
-    db = SQLite3::Database.new('db/development.sqlite3')
-    db.execute('DROP TABLE IF EXISTS {{ table.plural_name | snakecase }};')
+      t.timestamps
+    end
   end
 end
+
 EOL
 
-    cat > scripts/templates/ruby/model.rb << 'EOL'
-class {{ table.name }}
-  attr_accessor :id{% for column in table.columns %}{% if column.name != 'id' %}, :{{ column.name | lower }}{% endif %}{% endfor %}
-  
-  def self.db
-    @db ||= SQLite3::Database.new('db/development.sqlite3')
-    @db.results_as_hash = true
-    @db
-  end
-
-  def self.create_table
-    db.execute(<<-SQL)
-      CREATE TABLE IF NOT EXISTS {{ table.plural_name | lower }} (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        {% for column in table.columns %}
-        {% if column.name not in ['id', 'created_at', 'updated_at'] %}
-        {{ column.name | lower }} {{ column.sqlite_type }},
-        {% endif %}
-        {% endfor %}
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-    SQL
-  end
-
-  def self.all
-    db.execute("SELECT * FROM {{ table.plural_name | lower }}")
-  end
-
-  def self.find(id)
-    db.execute("SELECT * FROM {{ table.plural_name | lower }} WHERE id = ?", id).first
-  end
-
-  def self.create(params)
-    columns = [
-      {% for column in table.columns %}
-      {% if column.name not in ['id', 'created_at', 'updated_at'] %}
-      '{{ column.name | lower }}'{% if not loop.last %},{% endif %}
-      {% endif %}
-      {% endfor %}
-    ]
-    values = columns.map { |col| params[col.to_sym] }
-    
-    db.execute(
-      "INSERT INTO {{ table.plural_name | lower }} (#{columns.join(', ')}) VALUES (#{Array.new(columns.length, '?').join(', ')})",
-      values
-    )
-    find(db.last_insert_row_id)
-  end
-
-  def self.update(id, params)
-    columns = [
-      {% for column in table.columns %}
-      {% if column.name not in ['id', 'created_at', 'updated_at'] %}
-      '{{ column.name | lower }}'{% if not loop.last %},{% endif %}
-      {% endif %}
-      {% endfor %}
-    ]
-    sets = columns.map { |col| "#{col} = ?" }.join(', ')
-    values = columns.map { |col| params[col.to_sym] } + [id]
-    
-    db.execute(
-      "UPDATE {{ table.plural_name | lower }} SET #{sets}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-      values
-    )
-    find(id)
-  end
-
-  def self.delete(id)
-    db.execute("DELETE FROM {{ table.plural_name | lower }} WHERE id = ?", id)
-  end
+  cat >scripts/templates/ruby/model.rb <<'EOL'
+class {{ table.name | pascalcase }} < ApplicationRecord
 end
+
 EOL
 }
 
 create_dev_script() {
-    print_status "開発サーバー起動スクリプトを作成しています..."
-    
-    cat > dev.sh << 'EOL'
+  print_status "開発サーバー起動スクリプトを作成しています..."
+
+  cat >dev.sh <<'EOL'
 #!/bin/bash
 # フロントエンドとバックエンドを同時に起動
 
@@ -1097,7 +1195,7 @@ cleanup() {
 trap cleanup INT TERM
 
 echo "バックエンドサーバーを起動しています..."
-cd "$SCRIPT_DIR/backend" && bundle exec rackup -p 4567 & 
+cd "$SCRIPT_DIR/backend" && bundle exec rails server & 
 BACKEND_PID=$!
 
 echo "フロントエンドサーバーを起動しています..."
@@ -1105,20 +1203,19 @@ cd "$SCRIPT_DIR/frontend" && yarn dev &
 FRONTEND_PID=$!
 
 echo "開発サーバーが起動しました！"
-echo "バックエンド: http://localhost:4567"
+echo "バックエンド: http://localhost:3000"
 echo "フロントエンド: http://localhost:5173"
 
 # プロセスが終了するまで待機
 wait
 EOL
 
-    chmod +x dev.sh
-    print_success "開発サーバー起動スクリプトを作成しました"
+  chmod +x dev.sh
+  print_success "開発サーバー起動スクリプトを作成しました"
 
+  print_status "マイグレーションスクリプトを作成しています..."
 
-    print_status "マイグレーションスクリプトを作成しています..."
-    
-    cat > migrate.sh << 'EOL'
+  cat >migrate.sh <<'EOL'
 #!/bin/bash
 
 # スクリプトのディレクトリを取得
@@ -1126,22 +1223,22 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 echo "マイグレーションしています..."
 cd backend
-bundle exec rake db:migrate
+bundle exec rails db:migrate
 
 echo "マイグレーションが完了しました"
-bundle exec rake db:migrate:status
+bundle exec rails db:migrate:status
 EOL
 
-    chmod +x migrate.sh
-    print_success "マイグレーションスクリプトを作成しました"
+  chmod +x migrate.sh
+  print_success "マイグレーションスクリプトを作成しました"
 }
 
 create_documents() {
-    print_status "ドキュメントを作成しています..."
+  print_status "ドキュメントを作成しています..."
 
-    mkdir -p doc
+  mkdir -p doc
 
-    cat > doc/erd.md << 'EOL'
+  cat >doc/erd.md <<'EOL'
 # Tables
 ## Users
 - id: number
@@ -1152,28 +1249,28 @@ create_documents() {
 
 EOL
 
-    print_success "ドキュメントを作成しました"
+  print_success "ドキュメントを作成しました"
 }
 
 # メイン処理
 main() {
-    print_status "開発環境のセットアップを開始します..."
-    
-    check_dependencies
-    check_directory
-    
-    setup_backend
-    setup_frontend
-    
-    create_autogen_script
-    create_autogen_template
+  print_status "開発環境のセットアップを開始します..."
 
-    create_documents
-    create_dev_script
-    
-    print_success "セットアップが完了しました！"
-    print_status "以下のコマンドで開発サーバーを起動できます:"
-    print_status "./dev.sh"
+  check_dependencies
+  check_directory
+
+  setup_backend
+  setup_frontend
+
+  create_autogen_script
+  create_autogen_template
+
+  create_documents
+  create_dev_script
+
+  print_success "セットアップが完了しました！"
+  print_status "以下のコマンドで開発サーバーを起動できます:"
+  print_status "./dev.sh"
 }
 
 # エラーハンドリングの設定

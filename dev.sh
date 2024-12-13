@@ -16,7 +16,7 @@ cleanup() {
 trap cleanup INT TERM
 
 echo "バックエンドサーバーを起動しています..."
-cd "$SCRIPT_DIR/backend" && bundle exec rackup -p 4567 & 
+cd "$SCRIPT_DIR/backend" && bundle exec rails server & 
 BACKEND_PID=$!
 
 echo "フロントエンドサーバーを起動しています..."
@@ -24,7 +24,7 @@ cd "$SCRIPT_DIR/frontend" && yarn dev &
 FRONTEND_PID=$!
 
 echo "開発サーバーが起動しました！"
-echo "バックエンド: http://localhost:4567"
+echo "バックエンド: http://localhost:3000"
 echo "フロントエンド: http://localhost:5173"
 
 # プロセスが終了するまで待機

@@ -1,10 +1,18 @@
-source 'https://rubygems.org'
+source "https://rubygems.org"
 
-gem 'sinatra'
-gem 'sinatra-contrib'
-gem 'sinatra-activerecord'
-gem 'sqlite3'
-gem 'rake'
-gem 'rack-cors'
-gem 'rackup'
-gem 'puma'
+gem "rails"
+gem "sqlite3"
+gem "puma"
+
+gem "tzinfo-data", platforms: %i[ windows jruby ]
+gem "solid_cache"
+gem "solid_queue"
+gem "kamal", require: false
+gem "thruster", require: false
+gem "rack-cors"
+
+group :development, :test do
+  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
+  gem "brakeman", require: false
+  gem "rubocop-rails-omakase", require: false
+end

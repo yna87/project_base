@@ -1,5 +1,7 @@
 from jinja2 import Environment, FileSystemLoader
 import os
+import glob
+import re
 from typing import List, Dict
 from markdown_parser import MarkdownParser, InflectionUtils
 from datetime import datetime, timedelta
@@ -15,7 +17,6 @@ class RubyGenerator:
         self.env.filters['pascalcase'] = InflectionUtils.to_pascal_case
         self.env.filters['camelcase'] = InflectionUtils.to_camel_case
         self.env.filters['snakecase'] = InflectionUtils.to_snake_case
-        # タイムスタンプの開始時刻を保持
         self.current_timestamp = None
     
     def _map_type_to_ruby(self, ts_type: str) -> str:
@@ -38,6 +39,24 @@ class RubyGenerator:
         }
         return type_mapping.get(ruby_type, 'TEXT')
 
+    def _remove_existing_migration(self, output_dir: str, table_name: str):
+        """
+        Remove existing migration files for a given table name
+        """
+        migration_dir = os.path.join(output_dir, 'db/migrate')
+        if not os.path.exists(migration_dir):
+            return
+
+        # マイグレーションファイルのパターン: [timestamp]_create_[table_name].rb
+        pattern = os.path.join(migration_dir, f'*_create_{table_name}.rb')
+        existing_files = glob.glob(pattern)
+        
+        for file_path in existing_files:
+            try:
+                os.remove(file_path)
+            except OSError as e:
+                print(f"Error removing file {file_path}: {e}")
+
     def _generate_timestamp(self) -> str:
         """
         Generate unique timestamp for migration files
@@ -52,7 +71,6 @@ class RubyGenerator:
 
     def generate_from_markdown(self, markdown_path: str, output_dir: str):
         """Generate Ruby files from markdown definition"""
-        # タイムスタンプをリセット
         self.current_timestamp = None
         
         with open(markdown_path, 'r', encoding='utf-8') as f:
@@ -60,7 +78,7 @@ class RubyGenerator:
         
         tables = self.markdown_parser.parse_markdown(markdown_content)
 
-        self.save_files({'config.ru': self.generate_config(tables)}, output_dir)
+        self.save_files({'config/routes.rb': self.generate_routes(tables)}, output_dir)
         
         for table in tables:
             for column in table['columns']:
@@ -71,6 +89,9 @@ class RubyGenerator:
                     'sqlite_type': sqlite_type
                 })
             
+            # マイグレーションファイルを生成する前に既存のファイルを削除
+            self._remove_existing_migration(output_dir, table['plural_name'].lower())
+            
             files = self.generate_files(table)
             self.save_files(files, output_dir)
 
@@ -79,8 +100,8 @@ class RubyGenerator:
         plural_name = table_definition['plural_name'].lower()
         
         return {
-            f'models/{model_name}.rb': self.generate_model(table_definition),
-            f'routes/api/v1/{plural_name}.rb': self.generate_controller(table_definition),
+            f'app/models/{model_name}.rb': self.generate_model(table_definition),
+            f'app/controllers/api/v1/{plural_name}_controller.rb': self.generate_controller(table_definition),
             f'db/migrate/{self._generate_timestamp()}_create_{plural_name}.rb': self.generate_migration(table_definition)
         }
 
@@ -92,8 +113,8 @@ class RubyGenerator:
         template = self.env.get_template('ruby/controller.rb')
         return template.render(table=table_definition)
     
-    def generate_config(self, tables: List[Dict]) -> str:
-        template = self.env.get_template('ruby/config.ru')
+    def generate_routes(self, tables: List[Dict]) -> str:
+        template = self.env.get_template('ruby/routes.rb')
         return template.render(tables=tables)
     
     def generate_migration(self, table_definition: dict) -> str:

@@ -127,7 +127,7 @@ EOL
     --skip-hotwire \
     --skip-jbuilder \
     --force
-  
+
   # Gemfileを作成
   echo "📝 Gemfileを作成中..."
 
@@ -605,58 +605,111 @@ EOL
   # App.vueを更新
   cat >src/App.vue <<EOL
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import apiClient from './api/client'
-
-const backendStatus = ref<string>('Checking connection...')
-const error = ref<string | null>(null)
-
-const checkBackendConnection = async () => {
-  try {
-    const response = await apiClient.get('/health_check')
-    backendStatus.value = response.data.message
-    error.value = null
-  } catch (e) {
-    backendStatus.value = 'Connection failed'
-    error.value = 'Could not connect to the backend server'
-  }
-}
-
-onMounted(() => {
-  checkBackendConnection()
-})
+import { RouterLink, RouterView } from 'vue-router'
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
-    <div class="relative py-3 sm:max-w-xl sm:mx-auto">
-      <div
-        class="absolute inset-0 bg-gradient-to-r from-cyan-400 to-light-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"
-      ></div>
-      <div class="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
-        <div class="max-w-md mx-auto">
-          <div class="divide-y divide-gray-200">
-            <div class="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
-              <h1 class="text-2xl font-bold mb-4">Backend Connection Status</h1>
-              <p class="mb-2" :class="{ 'text-green-600': !error, 'text-red-600': error }">
-                {{ backendStatus }}
-              </p>
-              <p v-if="error" class="text-red-500 text-sm">
-                {{ error }}
-              </p>
-              <button
-                @click="checkBackendConnection"
-                class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Check Connection
-              </button>
-            </div>
-          </div>
+  <div class="min-h-screen bg-gray-50">
+    <!-- ナビゲーションバー -->
+    <nav class="bg-white shadow sticky top-0">
+      <div class="max-w-7xl mx-auto px-4">
+        <div class="flex space-x-4 h-14">
+          <RouterLink to="/" class="flex items-center px-3 text-gray-600 hover:text-gray-900">
+            Home
+          </RouterLink>
+          <RouterLink to="/system" class="flex items-center px-3 text-gray-600 hover:text-gray-900">
+            System
+          </RouterLink>
+          <RouterLink to="/database" class="flex items-center px-3 text-gray-600 hover:text-gray-900">
+            Database
+          </RouterLink>
         </div>
       </div>
-    </div>
+    </nav>
+
+    <!-- メインコンテンツ -->
+    <main class="max-w-7xl mx-auto px-4 py-4">
+      <RouterView />
+    </main>
   </div>
 </template>
+
+EOL
+
+  # main.ts の更新
+  cat >src/main.ts <<EOL
+import { createApp } from 'vue'
+import './style.css'
+import App from './App.vue'
+import router from './router'
+
+const app = createApp(App)
+app.use(router)
+app.mount('#app')
+
+EOL
+
+  # composable の作成
+  mkdir -p src/composables
+
+  cat >src/composables/use_api.ts <<EOL
+import Api from "@/api/api";
+
+export function useApi() {
+    const api = new Api();
+
+    return api;
+}
+
+EOL
+
+  # ルーティングの設定
+  mkdir -p src/router/routes
+  cat >src/router/index.ts <<EOL
+import { createRouter, createWebHistory } from 'vue-router'
+import { databaseRoutes } from './routes'
+import HomeView from '@/views/HomeView.vue'
+import SystemView from '@/views/SystemView.vue'
+
+const routes = [
+  {
+    path: '/',
+    name: 'home',
+    component: HomeView,
+  },
+  {
+    path: '/system',
+    name: 'system',
+    component: SystemView,
+  },
+  databaseRoutes,
+]
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes
+})
+
+export default router
+
+EOL
+
+  cat >src/router/routes/index.ts <<EOL
+export * from './database'
+
+EOL
+
+  cat >src/router/routes/database.ts <<EOL
+import { RouteRecordRaw } from 'vue-router'
+import BaseDataView from '@/views/BaseDataView.vue'
+
+export const databaseRoutes: RouteRecordRaw = {
+    path: '/database',
+    component: BaseDataView,
+    children: [
+    ]
+}
+
 EOL
 
   # .gitignore の更新
@@ -702,7 +755,18 @@ EOL
 }
 
 create_components() {
-  cat >frontend/src/components/DataTable.vue <<'EOL'
+  cd frontend
+
+  mkdir -p src/views
+
+  cat >src/views/HomeView.vue <<EOL
+<template>
+    <div />
+</template>
+
+EOL
+
+  cat >src/components/DataTable.vue <<EOL
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
@@ -841,6 +905,137 @@ const sortedData = computed(() => {
 </template>
 
 EOL
+
+  cat >src/views/BaseDataView.vue <<EOL
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useRouter, useRoute, type RouteRecordRaw } from 'vue-router'
+
+const router = useRouter()
+const route = useRoute()
+
+const displayRoutes = computed(() => {
+  return router.getRoutes().filter((route): route is RouteRecordRaw => {
+    return (
+      !route.path.includes(':') &&
+      !route.path.includes('*') &&
+      route.path.startsWith('/database') &&
+      route.path !== '/database'
+    )
+  })
+})
+
+const isActiveRoute = (path: string) => route.path === path
+
+const formatRouteName = (route: RouteRecordRaw) => {
+  const name = route.path.replace('/database/', '')
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
+</script>
+
+<template>
+  <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <!-- サイドバー -->
+    <aside class="fixed left-0 z-40 w-64 h-screen transition-transform" aria-label="Sidebar">
+      <!-- ロゴエリア -->
+      <div
+        class="h-16 flex items-center justify-start px-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <span class="text-xl font-semibold text-gray-800 dark:text-white">Database</span>
+      </div>
+
+      <!-- ナビゲーション -->
+      <div
+        class="h-[calc(100%-4rem)] overflow-y-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+        <nav class="p-4 space-y-2">
+          <router-link v-for="route in displayRoutes" :key="route.path" :to="route.path" :class="[
+            'flex items-center px-4 py-3 rounded-lg transition-all duration-200 text-sm font-medium',
+            isActiveRoute(route.path)
+              ? 'bg-blue-500 text-white shadow-md hover:bg-blue-600'
+              : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
+          ]">
+            <span class="ml-3">{{ route.name || formatRouteName(route) }}</span>
+          </router-link>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- メインコンテンツ -->
+    <main class="pl-64 min-h-screen">
+      <!-- ヘッダー -->
+      <header class="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div class="h-full px-6 flex items-center justify-between">
+          <h1 class="text-lg font-medium text-gray-800 dark:text-white">
+            {{ route.name || formatRouteName(route) }}
+          </h1>
+        </div>
+      </header>
+
+      <!-- コンテンツエリア -->
+      <div class="p-6">
+        <router-view />
+      </div>
+    </main>
+  </div>
+</template>
+
+EOL
+
+  cat >src/views/SystemView.vue <<EOL
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import apiClient from '@/api/client'
+
+const backendStatus = ref<string>('Checking connection...')
+const error = ref<string | null>(null)
+
+const checkBackendConnection = async () => {
+  try {
+    const response = await apiClient.get('/health_check')
+    backendStatus.value = response.data.message
+    error.value = null
+  } catch (e) {
+    backendStatus.value = 'Connection failed'
+    error.value = 'Could not connect to the backend server'
+  }
+}
+
+onMounted(() => {
+  checkBackendConnection()
+})
+</script>
+
+<template>
+  <div class="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
+    <div class="relative py-3 sm:max-w-xl sm:mx-auto">
+      <div
+        class="absolute inset-0 bg-gradient-to-r from-cyan-400 to-light-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl">
+      </div>
+      <div class="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
+        <div class="max-w-md mx-auto">
+          <div class="divide-y divide-gray-200">
+            <div class="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
+              <h1 class="text-2xl font-bold mb-4">Backend Connection Status</h1>
+              <p class="mb-2" :class="{ 'text-green-600': !error, 'text-red-600': error }">
+                {{ backendStatus }}
+              </p>
+              <p v-if="error" class="text-red-500 text-sm">
+                {{ error }}
+              </p>
+              <button @click="checkBackendConnection"
+                class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                Check Connection
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+EOL
+
+  cd ..
 }
 
 create_autogen_script() {
@@ -999,20 +1194,31 @@ class TypeScriptGenerator:
         tables = self.markdown_parser.parse_markdown(markdown_content)
         
         models_dir = os.path.join(output_dir, 'models')
-        api_dir = os.path.join(output_dir, 'api')
         os.makedirs(models_dir, exist_ok=True)
-        os.makedirs(api_dir, exist_ok=True)
+
+        views_dir = os.path.join(output_dir, 'views')
+        os.makedirs(views_dir, exist_ok=True)
         
         for table in tables:
             model_content = self.generate_model(table)
             model_path = os.path.join(models_dir, f'{table["name"].lower()}.ts')
             with open(model_path, 'w', encoding='utf-8') as f:
                 f.write(model_content)
+
+            data_view_content = self.generate_data_view(table)
+            data_view_path = os.path.join(views_dir, f'{InflectionUtils.to_pascal_case(table["plural_name"])}DataView.vue')
+            with open(data_view_path, 'w', encoding='utf-8') as f:
+                f.write(data_view_content)
         
         api_content = self.generate_api(tables)
-        api_path = os.path.join(api_dir, 'api.ts')
+        api_path = os.path.join(output_dir, 'api/api.ts')
         with open(api_path, 'w', encoding='utf-8') as f:
             f.write(api_content)
+
+        routes_content = self.generate_routes(tables)
+        routes_path = os.path.join(output_dir, 'router/routes/database.ts')
+        with open(routes_path, 'w', encoding='utf-8') as f:
+            f.write(routes_content)
     
     def generate_model(self, table_definition: dict) -> str:
         template = self.env.get_template('typescript/model.ts')
@@ -1021,10 +1227,19 @@ class TypeScriptGenerator:
     def generate_api(self, tables: List[Dict]) -> str:
         template = self.env.get_template('typescript/api.ts')
         return template.render(tables=tables)
+    
+    def generate_routes(self, tables: List[Dict]) -> str:
+        template = self.env.get_template('typescript/routes.ts')
+        return template.render(tables=tables)
+    
+    def generate_data_view(self, table_definition: dict) -> str:
+        template = self.env.get_template('vue/DataView.vue')
+        return template.render(table=table_definition)
 
 if __name__ == '__main__':
     generator = TypeScriptGenerator()
     generator.generate_from_markdown('../doc/erd.md', '../frontend/src')
+
 EOL
 
   cat >scripts/rb_generator.py <<'EOL'
@@ -1171,8 +1386,31 @@ create_autogen_template() {
   print_status "自動生成テンプレートを作成しています..."
 
   mkdir -p scripts/templates
+  mkdir -p scripts/templates/vue
   mkdir -p scripts/templates/typescript
   mkdir -p scripts/templates/ruby
+
+  cat >scripts/templates/vue/DataView.vue <<'EOL'
+<script setup lang="ts">
+import { useApi } from '@/composables/use_api';
+import { {{ table.name | pascalcase }} } from '@/models/{{ table.name | lower }}';
+import { onMounted, ref } from 'vue';
+
+import DataTable from '@/components/DataTable.vue';
+
+const api = useApi();
+const {{ table.plural_name | lower }} = ref<{{ table.name | pascalcase }}[] | null>(null);
+
+onMounted(async () => {
+    {{ table.plural_name | lower }}.value = await api.get{{ table.plural_name | pascalcase }}();
+})
+</script>
+
+<template>
+  <DataTable v-if="{{ table.plural_name | lower }}" :data="{{ table.plural_name | lower }}" auto-headers />
+</template>
+
+EOL
 
   cat >scripts/templates/typescript/api.ts <<'EOL'
 import apiClient from './client';
@@ -1222,6 +1460,29 @@ export class {{ table.name }} {
     {% for column in table.columns %}
     {{ column.name | camelcase }}?: {{ column.ts_type }};
     {% endfor %}
+}
+
+EOL
+
+  cat >scripts/templates/typescript/routes.ts <<'EOL'
+import { RouteRecordRaw } from 'vue-router'
+import BaseDataView from '@/views/BaseDataView.vue'
+{% for table in tables %}
+import Manage{{ table.plural_name }}View from '@/views/Manage{{ table.plural_name }}View.vue'
+{% endfor %}
+
+export const databaseRoutes: RouteRecordRaw = {
+    path: '/database',
+    component: BaseDataView,
+    children: [
+        {% for table in tables %}
+        {
+            path: '{{ table.plural_name | lower }}',
+            name: '{{ table.plural_name | lower }}',
+            component: Manage{{ table.plural_name }}View
+        },
+        {% endfor %}
+    ]
 }
 
 EOL
@@ -1444,6 +1705,15 @@ create_documents() {
 - id: number
 - name: string
 - email: string
+- created_at: Date
+- updated_at: Date
+
+## Tasks
+- id: number
+- name: string
+- description: string
+- due_date: Date
+- priority: number
 - created_at: Date
 - updated_at: Date
 

@@ -1215,13 +1215,13 @@ EOL
 
   cat >scripts/templates/typescript/model.ts <<'EOL'
 export class {{ table.name }} { 
-    {% for column in table.columns %}
-    {{ column.name | camelcase }}: {{ column.ts_type }};
-    {% endfor %}
-
     constructor(init?: Partial<{{ table.name }}>) {
         Object.assign(this, init);
     }
+
+    {% for column in table.columns %}
+    {{ column.name | camelcase }}?: {{ column.ts_type }};
+    {% endfor %}
 }
 
 EOL
@@ -1406,6 +1406,31 @@ EOL
 
   chmod +x migrate.sh
   print_success "マイグレーションスクリプトを作成しました"
+
+  print_status "自動生成スクリプトを作成しています..."
+
+  cat >generate.sh <<'EOL'
+#!/bin/bash
+# erd.mdからコードを自動生成
+
+# スクリプトのディレクトリを取得
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+echo "ソースコードを生成しています..."
+
+cd scripts
+
+python ./rb_generator.py
+python ./ts_generator.py
+
+cd ..
+
+echo "ソースコードの生成が完了しました"
+
+EOL
+
+  chmod +x generate.sh
+  print_success "自動生成スクリプトを作成しました"
 }
 
 create_documents() {

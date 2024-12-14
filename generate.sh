@@ -14,3 +14,4 @@ python ./ts_generator.py
 cd ..
 
 echo "ソースコードの生成が完了しました"
+

@@ -42,7 +42,7 @@ const formatLabel = (key: string): string => {
     // アンダースコアとハイフンをスペースに変換
     .replace(/[_-]/g, ' ')
     // キャメルケースをスペース区切りに変換
-    .replace(/([A-Z])/g, ' $1')
+    .replace(/([A-Z])/g, ' ')
     // 文字列の最初を大文字に
     .replace(/^./, str => str.toUpperCase())
     .trim()

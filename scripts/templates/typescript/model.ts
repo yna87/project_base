@@ -7,3 +7,4 @@ export class {{ table.name }} {
     {{ column.name | camelcase }}?: {{ column.ts_type }};
     {% endfor %}
 }
+

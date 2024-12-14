@@ -1065,15 +1065,6 @@ const formatRouteName = (route: RouteRecordRaw) => {
 
     <!-- メインコンテンツ -->
     <main class="pl-64 min-h-screen">
-      <!-- ヘッダー -->
-      <header class="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div class="h-full px-6 flex items-center justify-between">
-          <h1 class="text-lg font-medium text-gray-800 dark:text-white">
-            {{ route.name || formatRouteName(route) }}
-          </h1>
-        </div>
-      </header>
-
       <!-- コンテンツエリア -->
       <div class="p-6">
         <router-view />
@@ -1529,7 +1520,7 @@ onMounted(async () => {
 <template>
   <div class="space-y-6">
     <div class="flex justify-between items-center">
-      <h1 class="text-2xl font-bold text-gray-900">タスク一覧</h1>
+      <h1 class="text-2xl font-bold text-gray-900">{{ table.plural_name | pascalcase }}</h1>
       <button
         @click="showForm = !showForm"
         class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"

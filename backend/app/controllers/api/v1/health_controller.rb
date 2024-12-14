@@ -3,10 +3,12 @@ module Api
     class HealthController < ApplicationController
       def check
         render json: {
-          status: 'ok',
-          message: 'Backend is running!',
-          timestamp: Time.current,
-          database: database_status
+          data: {
+            status: 'ok',
+            message: 'Backend is running!',
+            timestamp: Time.current,
+            database: database_status
+          }
         }
       end
 

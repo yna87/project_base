@@ -178,10 +178,12 @@ module Api
     class HealthController < ApplicationController
       def check
         render json: {
-          status: 'ok',
-          message: 'Backend is running!',
-          timestamp: Time.current,
-          database: database_status
+          data: {
+            status: 'ok',
+            message: 'Backend is running!',
+            timestamp: Time.current,
+            database: database_status
+          }
         }
       end
 
@@ -311,10 +313,11 @@ EOL
     "format": "prettier --write src/"
   },
   "dependencies": {
-    "axios": "^1.6.2",
-    "pinia": "^2.1.7",
     "@tailwindcss/forms": "^0.5.7",
     "@tailwindcss/typography": "^0.5.10",
+    "axios": "^1.6.2",
+    "lodash": "^4.17.21",
+    "pinia": "^2.1.7",
     "vue": "^3.3.11",
     "vue-router": "^4.2.5"
   },
@@ -322,6 +325,7 @@ EOL
     "@rushstack/eslint-patch": "^1.3.3",
     "@storybook/vue3-vite": "^8.0.0",
     "@tsconfig/node22": "^22.0.0",
+    "@types/lodash": "^4",
     "@types/node": "^20.10.4",
     "@vitejs/plugin-vue": "^4.5.2",
     "@vue/eslint-config-prettier": "^8.0.0",
@@ -339,6 +343,7 @@ EOL
     "vue-tsc": "^1.8.25"
   }
 }
+
 EOL
 
   # パッケージのインストール（Yarn 4の構文で）
@@ -394,9 +399,84 @@ EOL
   # APIクライアントの設定
   mkdir -p src/api
   cat >src/api/client.ts <<EOL
-import axios from 'axios';
+import axios, { AxiosInstance, CreateAxiosDefaults } from 'axios';
+import { ApiResponse } from './types';
 
-const apiClient = axios.create({
+import { snakeCase, camelCase } from 'lodash';
+
+// オブジェクトのキーをsnake_caseに変換する関数
+const toSnakeCase = (obj) => {
+  if (Array.isArray(obj)) {
+    return obj.map(toSnakeCase);
+  } else if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj).reduce((acc, key) => {
+      acc[snakeCase(key)] = toSnakeCase(obj[key]);
+      return acc;
+    }, {});
+  }
+  return obj;
+};
+
+// オブジェクトのキーをcamelCaseに変換する関数
+const toCamelCase = (obj) => {
+  if (Array.isArray(obj)) {
+    return obj.map(toCamelCase);
+  } else if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj).reduce((acc, key) => {
+      acc[camelCase(key)] = toCamelCase(obj[key]);
+      return acc;
+    }, {});
+  }
+  return obj;
+};
+
+class ApiClient {
+  constructor (config?: CreateAxiosDefaults) {
+    this.axiosInstance = axios.create(config);
+
+    // リクエストインターセプター
+    this.axiosInstance.interceptors.request.use((config) => {
+      if (config.data) {
+        config.data = toSnakeCase(config.data);
+      }
+      if (config.params) {
+        config.params = toSnakeCase(config.params);
+      }
+      return config;
+    });
+
+    // レスポンスインターセプター
+    this.axiosInstance.interceptors.response.use((response) => {
+      if (response.data) {
+        response.data = toCamelCase(response.data);
+      }
+      return response;
+    });
+  }
+  
+  private axiosInstance: AxiosInstance;
+
+  async get<T>(url: string): Promise<ApiResponse<T>> {
+    const response = await this.axiosInstance.get<ApiResponse<T>>(url);
+    return response.data;
+  }
+
+  async post<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+    const response = await this.axiosInstance.post<ApiResponse<T>>(url, data);
+    return response.data;
+  }
+
+  async put<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+    const response = await this.axiosInstance.put<ApiResponse<T>>(url, data);
+    return response.data;
+  }
+
+  async delete(url: string): Promise<void> {
+    await this.axiosInstance.delete(url);
+  }
+};
+
+const apiClient = new ApiClient({
   baseURL: import.meta.env.VITE_API_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -405,6 +485,20 @@ const apiClient = axios.create({
 });
 
 export default apiClient;
+EOL
+
+  cat >src/api/types.ts <<EOL
+export interface ListResponse<T> {
+    items: T[];
+    count: number;
+}
+
+export interface SingleResponse<T> {
+  data: T;
+}
+
+export type ApiResponse<T> = T extends any[] ? ListResponse<T[number]> : SingleResponse<T>;
+
 EOL
 
   # TypeScript設定の更新
@@ -605,6 +699,148 @@ EOL
   yarn install || handle_error "依存関係のインストールに失敗しました"
 
   cd ..
+}
+
+create_components() {
+  cat >frontend/src/components/DataTable.vue <<'EOL'
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+
+interface TableHeader {
+  key: string
+  label: string
+  sortable?: boolean
+}
+
+interface Props {
+  data: Record<string, any>[]
+  headers?: TableHeader[]
+  autoHeaders?: boolean
+  allSortable?: boolean
+}
+
+// Props の定義
+const props = withDefaults(defineProps<Props>(), {
+  data: () => [],
+  headers: undefined,
+  autoHeaders: false,
+  allSortable: true
+})
+
+// ヘッダー情報の自動生成
+const generatedHeaders = computed<TableHeader[]>(() => {
+  if (props.headers) return props.headers
+  if (props.data.length === 0) return []
+
+  // オブジェクトの最初の要素からキーを取得
+  const firstItem = props.data[0]
+  return Object.keys(firstItem).map(key => ({
+    key,
+    label: formatLabel(key),
+    sortable: props.allSortable
+  }))
+})
+
+// キャメルケースやスネークケースを人が読みやすい形式に変換
+const formatLabel = (key: string): string => {
+  return key
+    // アンダースコアとハイフンをスペースに変換
+    .replace(/[_-]/g, ' ')
+    // キャメルケースをスペース区切りに変換
+    .replace(/([A-Z])/g, ' $1')
+    // 文字列の最初を大文字に
+    .replace(/^./, str => str.toUpperCase())
+    .trim()
+}
+
+// ソート関連の状態管理
+const sortColumn = ref<string>('')
+const sortDirection = ref<'asc' | 'desc'>('asc')
+
+// ソート関数
+const sortBy = (key: string) => {
+  if (sortColumn.value === key) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn.value = key
+    sortDirection.value = 'asc'
+  }
+}
+
+// ソート済みデータの計算
+const sortedData = computed(() => {
+  if (!sortColumn.value) return props.data
+
+  return [...props.data].sort((a, b) => {
+    const aValue = a[sortColumn.value]
+    const bValue = b[sortColumn.value]
+
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      return sortDirection.value === 'asc'
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+
+    return sortDirection.value === 'asc'
+      ? aValue > bValue ? 1 : -1
+      : aValue < bValue ? 1 : -1
+  })
+})
+</script>
+
+<template>
+  <div class="w-full overflow-x-auto">
+    <table v-if="data.length > 0" class="w-full min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th
+            v-for="header in generatedHeaders"
+            :key="header.key"
+            @click="header.sortable && sortBy(header.key)"
+            class="px-6 py-3 text-left text-sm font-semibold text-gray-600"
+            :class="[
+              header.sortable && 'cursor-pointer hover:bg-gray-100 transition-colors',
+              sortColumn === header.key && 'bg-gray-100'
+            ]"
+          >
+            <div class="flex items-center space-x-1">
+              <span>{{ header.label }}</span>
+              <span v-if="header.sortable" class="text-gray-400">
+                <span v-if="sortColumn === header.key" class="ml-1">
+                  {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                </span>
+                <span v-else class="ml-1 opacity-0 group-hover:opacity-50">↑</span>
+              </span>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        <tr
+          v-for="(item, index) in sortedData"
+          :key="index"
+          class="hover:bg-gray-50 transition-colors"
+        >
+          <td
+            v-for="header in generatedHeaders"
+            :key="header.key"
+            class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap"
+          >
+            {{ item[header.key] }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div
+      v-else
+      class="w-full p-8 text-center text-gray-500 bg-gray-50 rounded-lg"
+    >
+      データがありません
+    </div>
+  </div>
+</template>
+
+EOL
 }
 
 create_autogen_script() {
@@ -954,7 +1190,7 @@ export class Api {
 
     async get{{ table.plural_name }}(): Promise<{{ table.name }}[]> {
         const response = await apiClient.get<{{ table.name }}[]>('/{{ table.plural_name | lower }}');
-        return response.data.map(item => new {{ table.name }}(item));
+        return response.items.map(item => new {{ table.name }}(item));
     }
 
     async update{{ table.name }}(id: number, {{ table.name | lower }}: Partial<{{ table.name }}>): Promise<{{ table.name }}> {
@@ -974,6 +1210,7 @@ export class Api {
 }
 
 export default Api;
+
 EOL
 
   cat >scripts/templates/typescript/model.ts <<'EOL'
@@ -1014,7 +1251,8 @@ module Api
         {{ table.plural_name | lower }} = {{ table.name | pascalcase }}.all
         render json: {
           status: 'success',
-          data: {{ table.plural_name | lower }}
+          items: {{ table.plural_name | lower }},
+          count: {{ table.plural_name | lower }}.count
         }
       end
 
@@ -1028,7 +1266,7 @@ module Api
 
       # POST /api/v1/{{ table.plural_name | lower }}
       def create
-        {{ table.name | lower }} = {{ table.plural_name | pascalcase }}.new({{ table.name | lower }}_params)
+        {{ table.name | lower }} = {{ table.name | pascalcase }}.new({{ table.name | lower }}_params)
         if {{ table.name | lower }}.save
           render json: {
             status: 'success',
@@ -1062,7 +1300,7 @@ module Api
         @{{ table.name | lower }}.destroy
         render json: {
           status: 'success',
-          message: '{{ table.plural_name | pascalcase }} was successfully deleted'
+          message: '{{ table.name | pascalcase }} was successfully deleted'
         }
       end
 
@@ -1073,75 +1311,12 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render json: {
           status: 'error',
-          message: '{{ table.plural_name | pascalcase }} not found'
+          message: '{{ table.name | pascalcase }} not found'
         }, status: :not_found
       end
 
       def {{ table.name | lower }}_params
         params.require(:{{ table.name | lower }}).permit(:name, :email)
-      end
-    end
-  end
-end
-
-
-
-
-
-
-
-
-
-
-module Api
-  module V1
-    class {{ table.plural_name | pascalcase }}Controller < Sinatra::Base
-      error SQLite3::Exception do
-        status 500
-        { error: env['sinatra.error'].message }.to_json
-      end
-
-      def show
-  {{ table.name | lower }} = {{ table.plural_name | pascalcase }}.find(params[:id])
-  render json: {
-    status: 'success',
-    data: {{ table.name | lower }}
-  }
-end
-    
-      get '/{{ table.plural_name | lower }}' do
-        {{ table.plural_name | lower }} = {{ table.name }}.all
-        {{ table.plural_name | lower }}.to_json
-      end
-    
-      get '/{{ table.plural_name | lower }}/:id' do
-        {{ table.name | lower }} = {{ table.name }}.find(params[:id])
-        halt 404, { error: '{{ table.name }} not found' }.to_json unless {{ table.name | lower }}
-        {{ table.name | lower }}.to_json
-      end
-    
-      post '/{{ table.plural_name | lower }}' do
-        data = JSON.parse(request.body.read, symbolize_names: true)
-        {{ table.name | lower }} = {{ table.name }}.create(data)
-        status 201
-        {{ table.name | lower }}.to_json
-      end
-    
-      put '/{{ table.plural_name | lower }}/:id' do
-        data = JSON.parse(request.body.read, symbolize_names: true)
-        {{ table.name | lower }} = {{ table.name }}.find(params[:id])
-        halt 404, { error: '{{ table.name }} not found' }.to_json unless {{ table.name | lower }}
-
-        updated_{{ table.name | lower }} = {{ table.name }}.update(params[:id], data)
-        updated_{{ table.name | lower }}.to_json
-      end
-    
-      delete '/{{ table.plural_name | lower }}/:id' do
-        {{ table.name | lower }} = {{ table.name }}.find(params[:id])
-        halt 404, { error: '{{ table.name }} not found' }.to_json unless {{ table.name | lower }}
-
-        {{ table.name }}.delete(params[:id])
-        status 204
       end
     end
   end
@@ -1262,6 +1437,7 @@ main() {
   setup_backend
   setup_frontend
 
+  create_components
   create_autogen_script
   create_autogen_template
 

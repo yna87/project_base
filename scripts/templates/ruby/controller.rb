@@ -8,7 +8,8 @@ module Api
         {{ table.plural_name | lower }} = {{ table.name | pascalcase }}.all
         render json: {
           status: 'success',
-          data: {{ table.plural_name | lower }}
+          items: {{ table.plural_name | lower }},
+          count: {{ table.plural_name | lower }}.count
         }
       end
 
@@ -77,3 +78,4 @@ module Api
     end
   end
 end
+

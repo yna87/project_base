@@ -131,3 +131,4 @@ class RubyGenerator:
 if __name__ == '__main__':
     generator = RubyGenerator()
     generator.generate_from_markdown('../doc/erd.md', '../backend')
+

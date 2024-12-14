@@ -13,7 +13,7 @@ export class Api {
 
     async get{{ table.plural_name }}(): Promise<{{ table.name }}[]> {
         const response = await apiClient.get<{{ table.name }}[]>('/{{ table.plural_name | lower }}');
-        return response.data.map(item => new {{ table.name }}(item));
+        return response.items.map(item => new {{ table.name }}(item));
     }
 
     async update{{ table.name }}(id: number, {{ table.name | lower }}: Partial<{{ table.name }}>): Promise<{{ table.name }}> {
@@ -33,3 +33,4 @@ export class Api {
 }
 
 export default Api;
+

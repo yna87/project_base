@@ -64,7 +64,7 @@ module Api
       private
 
       def set_{{ table.name | lower }}
-        @{{ table.name | lower }} = {{ table.plural_name | pascalcase }}.find(params[:id])
+        @{{ table.name | lower }} = {{ table.name | pascalcase }}.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: {
           status: 'error',

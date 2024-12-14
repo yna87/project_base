@@ -52,15 +52,6 @@ const formatRouteName = (route: RouteRecordRaw) => {
 
     <!-- メインコンテンツ -->
     <main class="pl-64 min-h-screen">
-      <!-- ヘッダー -->
-      <header class="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div class="h-full px-6 flex items-center justify-between">
-          <h1 class="text-lg font-medium text-gray-800 dark:text-white">
-            {{ route.name || formatRouteName(route) }}
-          </h1>
-        </div>
-      </header>
-
       <!-- コンテンツエリア -->
       <div class="p-6">
         <router-view />

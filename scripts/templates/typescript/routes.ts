@@ -1,7 +1,7 @@
 import { RouteRecordRaw } from 'vue-router'
 import BaseDataView from '@/views/BaseDataView.vue'
 {% for table in tables %}
-import Manage{{ table.plural_name }}View from '@/views/Manage{{ table.plural_name }}View.vue'
+import {{ table.plural_name }}DataView from '@/views/{{ table.plural_name }}DataView.vue'
 {% endfor %}
 
 export const databaseRoutes: RouteRecordRaw = {
@@ -12,7 +12,7 @@ export const databaseRoutes: RouteRecordRaw = {
         {
             path: '{{ table.plural_name | lower }}',
             name: '{{ table.plural_name | lower }}',
-            component: Manage{{ table.plural_name }}View
+            component: {{ table.plural_name }}DataView
         },
         {% endfor %}
     ]

@@ -7,43 +7,34 @@ interface TableHeader {
   sortable?: boolean
 }
 
-interface Props {
-  data: Record<string, any>[]
-  headers?: TableHeader[]
-  autoHeaders?: boolean
-  allSortable?: boolean
-}
-
-// Props の定義
-const props = withDefaults(defineProps<Props>(), {
-  data: () => [],
-  headers: undefined,
-  autoHeaders: false,
-  allSortable: true
-})
+const props = defineProps<{
+  data: Record<string, any>[],
+  headers?: TableHeader[],
+  delete?: (id: any) => Promise<void>,
+}>();
 
 // ヘッダー情報の自動生成
 const generatedHeaders = computed<TableHeader[]>(() => {
-  if (props.headers) return props.headers
+  if (props.headers) return [...props.headers, { key: 'actions', label: 'アクション', sortable: false }]
   if (props.data.length === 0) return []
 
   // オブジェクトの最初の要素からキーを取得
   const firstItem = props.data[0]
-  return Object.keys(firstItem).map(key => ({
-    key,
-    label: formatLabel(key),
-    sortable: props.allSortable
-  }))
+  return [
+    ...Object.keys(firstItem).map(key => ({
+      key,
+      label: formatLabel(key),
+      sortable: true
+    })),
+    { key: 'actions', label: 'アクション', sortable: false }  // アクション列を追加
+  ]
 })
 
 // キャメルケースやスネークケースを人が読みやすい形式に変換
 const formatLabel = (key: string): string => {
   return key
-    // アンダースコアとハイフンをスペースに変換
     .replace(/[_-]/g, ' ')
-    // キャメルケースをスペース区切りに変換
-    .replace(/([A-Z])/g, ' ')
-    // 文字列の最初を大文字に
+    .replace(/([A-Z])/g, str => ' ' + str)
     .replace(/^./, str => str.toUpperCase())
     .trim()
 }
@@ -54,6 +45,7 @@ const sortDirection = ref<'asc' | 'desc'>('asc')
 
 // ソート関数
 const sortBy = (key: string) => {
+  if (key === 'actions') return  // アクション列はソート不可
   if (sortColumn.value === key) {
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
   } else {
@@ -81,6 +73,13 @@ const sortedData = computed(() => {
       : aValue < bValue ? 1 : -1
   })
 })
+
+// 削除ハンドラー
+const handleDelete = (item: Record<string, any>) => {
+  if (props.delete && item.id) {
+    props.delete(item.id)
+  }
+}
 </script>
 
 <template>
@@ -121,7 +120,18 @@ const sortedData = computed(() => {
             :key="header.key"
             class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap"
           >
-            {{ item[header.key] }}
+            <template v-if="header.key === 'actions'">
+              <button
+                v-if="delete"
+                @click="handleDelete(item)"
+                class="text-red-600 hover:text-red-800 font-medium"
+              >
+                削除
+              </button>
+            </template>
+            <template v-else>
+              {{ item[header.key] }}
+            </template>
           </td>
         </tr>
       </tbody>

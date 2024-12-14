@@ -776,43 +776,34 @@ interface TableHeader {
   sortable?: boolean
 }
 
-interface Props {
-  data: Record<string, any>[]
-  headers?: TableHeader[]
-  autoHeaders?: boolean
-  allSortable?: boolean
-}
-
-// Props の定義
-const props = withDefaults(defineProps<Props>(), {
-  data: () => [],
-  headers: undefined,
-  autoHeaders: false,
-  allSortable: true
-})
+const props = defineProps<{
+  data: Record<string, any>[],
+  headers?: TableHeader[],
+  delete?: (id: any) => Promise<void>,
+}>();
 
 // ヘッダー情報の自動生成
 const generatedHeaders = computed<TableHeader[]>(() => {
-  if (props.headers) return props.headers
+  if (props.headers) return [...props.headers, { key: 'actions', label: 'アクション', sortable: false }]
   if (props.data.length === 0) return []
 
   // オブジェクトの最初の要素からキーを取得
   const firstItem = props.data[0]
-  return Object.keys(firstItem).map(key => ({
-    key,
-    label: formatLabel(key),
-    sortable: props.allSortable
-  }))
+  return [
+    ...Object.keys(firstItem).map(key => ({
+      key,
+      label: formatLabel(key),
+      sortable: true
+    })),
+    { key: 'actions', label: 'アクション', sortable: false }  // アクション列を追加
+  ]
 })
 
 // キャメルケースやスネークケースを人が読みやすい形式に変換
 const formatLabel = (key: string): string => {
   return key
-    // アンダースコアとハイフンをスペースに変換
     .replace(/[_-]/g, ' ')
-    // キャメルケースをスペース区切りに変換
-    .replace(/([A-Z])/g, ' $1')
-    // 文字列の最初を大文字に
+    .replace(/([A-Z])/g, str => ' ' + str)
     .replace(/^./, str => str.toUpperCase())
     .trim()
 }
@@ -823,6 +814,7 @@ const sortDirection = ref<'asc' | 'desc'>('asc')
 
 // ソート関数
 const sortBy = (key: string) => {
+  if (key === 'actions') return  // アクション列はソート不可
   if (sortColumn.value === key) {
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
   } else {
@@ -850,6 +842,13 @@ const sortedData = computed(() => {
       : aValue < bValue ? 1 : -1
   })
 })
+
+// 削除ハンドラー
+const handleDelete = (item: Record<string, any>) => {
+  if (props.delete && item.id) {
+    props.delete(item.id)
+  }
+}
 </script>
 
 <template>
@@ -890,7 +889,18 @@ const sortedData = computed(() => {
             :key="header.key"
             class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap"
           >
-            {{ item[header.key] }}
+            <template v-if="header.key === 'actions'">
+              <button
+                v-if="delete"
+                @click="handleDelete(item)"
+                class="text-red-600 hover:text-red-800 font-medium"
+              >
+                削除
+              </button>
+            </template>
+            <template v-else>
+              {{ item[header.key] }}
+            </template>
           </td>
         </tr>
       </tbody>
@@ -902,6 +912,100 @@ const sortedData = computed(() => {
       データがありません
     </div>
   </div>
+</template>
+
+EOL
+
+  cat >src/components/DataForm.vue <<EOL
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+
+interface FormField {
+  key: string;
+  type: string;
+  value: any;
+}
+
+const props = defineProps<{
+  data: Record<string, any>,
+  submit: (d: typeof props.data) => Promise<void>,
+}>();
+
+const formData = ref({ ...props.data });
+const isSubmitting = ref(false);
+const error = ref('');
+
+const getInputType = (value: any): string => {
+  switch (typeof value) {
+    case 'number':
+      return 'number';
+    case 'boolean':
+      return 'checkbox';
+    case 'string':
+      return 'text';
+    default:
+      return 'text';
+  }
+};
+
+const fields = computed((): FormField[] => {
+  return Object.entries(props.data).map(([key, value]) => ({
+    key,
+    type: getInputType(value),
+    value
+  }));
+});
+
+const onSubmit = async () => {
+  console.log(formData.value);
+  try {
+    isSubmitting.value = true;
+    error.value = '';
+    await props.submit(formData.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '送信中にエラーが発生しました';
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+</script>
+
+<template>
+  <form @submit.prevent="onSubmit" class="space-y-4">
+    <div v-for="field in fields" :key="field.key" class="form-field">
+      <label :for="field.key" class="block text-sm font-medium text-gray-700">
+        {{ field.key }}
+      </label>
+      
+      <input
+        v-if="field.type !== 'checkbox'"
+        :id="field.key"
+        :type="field.type"
+        v-model="formData[field.key]"
+        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      />
+      
+      <input
+        v-else
+        :id="field.key"
+        type="checkbox"
+        v-model="formData[field.key]"
+        class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+      />
+    </div>
+
+    <div v-if="error" class="text-red-600 text-sm mt-2">
+      {{ error }}
+    </div>
+
+    <button
+      type="submit"
+      :disabled="isSubmitting"
+      class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+    >
+      {{ isSubmitting ? '送信中...' : '保存' }}
+    </button>
+  </form>
 </template>
 
 EOL
@@ -1395,19 +1499,59 @@ create_autogen_template() {
 import { useApi } from '@/composables/use_api';
 import { {{ table.name | pascalcase }} } from '@/models/{{ table.name | lower }}';
 import { onMounted, ref } from 'vue';
-
 import DataTable from '@/components/DataTable.vue';
+import DataForm from '@/components/DataForm.vue';
 
 const api = useApi();
 const {{ table.plural_name | lower }} = ref<{{ table.name | pascalcase }}[] | null>(null);
+const showForm = ref(false);
+
+const onGet{{ table.plural_name | pascalcase }} = async () => {
+  {{ table.plural_name | lower }}.value = await api.get{{ table.plural_name | pascalcase }}();
+};
+
+const onCreate{{ table.name | pascalcase }} = async ({{ table.name | lower }}: {{ table.name | pascalcase }}) => {
+  await api.create{{ table.name | pascalcase }}({{ table.name | lower }});
+  showForm.value = false;
+  {{ table.plural_name | lower }}.value = await api.get{{ table.plural_name | pascalcase }}();
+}
+
+const onDelete{{ table.name | pascalcase }} = async (id: number) => {
+  await api.delete{{ table.name | pascalcase }}(id);
+  {{ table.plural_name | lower }}.value = await api.get{{ table.plural_name | pascalcase }}();
+}
 
 onMounted(async () => {
-    {{ table.plural_name | lower }}.value = await api.get{{ table.plural_name | pascalcase }}();
-})
+  await onGet{{ table.plural_name | pascalcase }}();
+});
 </script>
 
 <template>
-  <DataTable v-if="{{ table.plural_name | lower }}" :data="{{ table.plural_name | lower }}" auto-headers />
+  <div class="space-y-6">
+    <div class="flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-gray-900">タスク一覧</h1>
+      <button
+        @click="showForm = !showForm"
+        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+      >
+        {% raw %}
+        {{ showForm ? '新規作成をキャンセル' : '新規作成' }}
+        {% endraw %}
+      </button>
+    </div>
+
+    <DataForm
+      v-if="showForm"
+      :data="new {{ table.name | pascalcase }}()"
+      :submit="onCreate{{ table.name | pascalcase }}"
+    />
+
+    <DataTable
+      v-if="{{ table.plural_name | lower }}"
+      :data="{{ table.plural_name | lower }}"
+      :delete="onDelete{{ table.name | pascalcase }}"
+    />
+  </div>
 </template>
 
 EOL
@@ -1468,7 +1612,7 @@ EOL
 import { RouteRecordRaw } from 'vue-router'
 import BaseDataView from '@/views/BaseDataView.vue'
 {% for table in tables %}
-import Manage{{ table.plural_name }}View from '@/views/Manage{{ table.plural_name }}View.vue'
+import {{ table.plural_name }}DataView from '@/views/{{ table.plural_name }}DataView.vue'
 {% endfor %}
 
 export const databaseRoutes: RouteRecordRaw = {
@@ -1479,7 +1623,7 @@ export const databaseRoutes: RouteRecordRaw = {
         {
             path: '{{ table.plural_name | lower }}',
             name: '{{ table.plural_name | lower }}',
-            component: Manage{{ table.plural_name }}View
+            component: {{ table.plural_name }}DataView
         },
         {% endfor %}
     ]
